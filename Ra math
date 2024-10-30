@@ -1,39 +1,6 @@
 function Calculate-EntityRiskScore {
     param (
-        [int[]]$riskScores,
-        [float]$weighting = 0.3
-    )
-
-    # Find the maximum risk score
-    $maxRiskScore = ($riskScores | Measure-Object -Maximum).Maximum
-
-    # Calculate the sum of all risk scores minus the max
-    $remainingRiskScoresSum = ($riskScores | Measure-Object -Sum).Sum - $maxRiskScore
-
-    # Calculate the base entity risk score
-    $baseEntityRiskScore = $maxRiskScore + ($weighting * $remainingRiskScoresSum)
-
-    # Display detailed output
-    Write-Output "Calculation Details:"
-    Write-Output "--------------------"
-    Write-Output "Max Finding Risk Score: $maxRiskScore"
-    Write-Output "Sum of Remaining Risk Scores: $remainingRiskScoresSum"
-    Write-Output "Weighting Factor: $weighting"
-    Write-Output ""
-    Write-Output "Calculation: $maxRiskScore + ($weighting * $remainingRiskScoresSum)"
-    Write-Output "Base Entity Risk Score: $baseEntityRiskScore"
-    Write-Output ""
-    Write-Output "Final Base Entity Risk Score: $baseEntityRiskScore"
-}
-
-# Example usage
-Calculate-EntityRiskScore -riskScores @(40, 80, 80)
-
-
-# Function to calculate Base Entity Risk Score
-function Calculate-EntityRiskScore {
-    param (
-        [float]$weighting = 0.3             # Default weighting factor
+        [float]$weighting = 0.3  # Default weighting factor
     )
 
     # Prompt for individual detection scores and store them in an array
@@ -51,15 +18,24 @@ function Calculate-EntityRiskScore {
     }
 
     # Calculate the maximum score and sum of remaining scores
-    $maxFindingRiskScore = ($detectionScores | Measure-Object -Maximum).Maximum
-    $sumRemainingScores = ($detectionScores | Where-Object { $_ -ne $maxFindingRiskScore }) | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+    $maxRiskScore = ($detectionScores | Measure-Object -Maximum).Maximum
+    $remainingRiskScoresSum = ($detectionScores | Measure-Object -Sum).Sum - $maxRiskScore
 
     # Calculate base entity risk score
-    $baseEntityRiskScore = $maxFindingRiskScore + ($weighting * $sumRemainingScores)
+    $baseEntityRiskScore = $maxRiskScore + ($weighting * $remainingRiskScoresSum)
 
-    return $baseEntityRiskScore
+    # Display detailed output
+    Write-Output "Calculation Details:"
+    Write-Output "--------------------"
+    Write-Output "Max Finding Risk Score: $maxRiskScore"
+    Write-Output "Sum of Remaining Risk Scores: $remainingRiskScoresSum"
+    Write-Output "Weighting Factor: $weighting"
+    Write-Output ""
+    Write-Output "Calculation: $maxRiskScore + ($weighting * $remainingRiskScoresSum)"
+    Write-Output "Base Entity Risk Score: $baseEntityRiskScore"
+    Write-Output ""
+    Write-Output "Final Base Entity Risk Score: $baseEntityRiskScore"
 }
 
 # Calculate and display result
-$baseEntityRiskScore = Calculate-EntityRiskScore
-Write-Output "The calculated Base Entity Risk Score is: $baseEntityRiskScore"
+Calculate-EntityRiskScore
