@@ -7,7 +7,17 @@ function Calculate-EntityRiskScore {
     $detectionScores = @()
     while ($true) {
         $input = Read-Host "Enter a detection risk score (or type 'done' to finish)"
-        if ($input -eq 'done') { break }
+
+        # Check if the input is 'done' (case-insensitive) to exit the loop
+        if ($input -match '^done$') { break }
+
+        # Check if input is empty or non-numeric
+        if (-not [float]::TryParse($input, [ref]$null)) {
+            Write-Output "Invalid input. Please enter a valid number or type 'done' to finish."
+            continue
+        }
+
+        # Add the valid input to the array
         $detectionScores += [float]$input
     }
 
