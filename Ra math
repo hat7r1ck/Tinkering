@@ -4,8 +4,13 @@ function Calculate-EntityRiskScore {
         [float]$weighting = 0.3
     )
 
+    # Find the maximum risk score
     $maxRiskScore = ($riskScores | Measure-Object -Maximum).Maximum
-    $remainingRiskScoresSum = ($riskScores | Where-Object { $_ -ne $maxRiskScore } | Measure-Object -Sum).Sum
+
+    # Calculate the sum of all risk scores minus the max
+    $remainingRiskScoresSum = ($riskScores | Measure-Object -Sum).Sum - $maxRiskScore
+
+    # Calculate the base entity risk score
     $baseEntityRiskScore = $maxRiskScore + ($weighting * $remainingRiskScoresSum)
 
     # Display detailed output
@@ -23,3 +28,38 @@ function Calculate-EntityRiskScore {
 
 # Example usage
 Calculate-EntityRiskScore -riskScores @(40, 80, 80)
+
+
+# Function to calculate Base Entity Risk Score
+function Calculate-EntityRiskScore {
+    param (
+        [float]$weighting = 0.3             # Default weighting factor
+    )
+
+    # Prompt for individual detection scores and store them in an array
+    $detectionScores = @()
+    while ($true) {
+        $input = Read-Host "Enter a detection risk score (or type 'done' to finish)"
+        if ($input -eq 'done') { break }
+        $detectionScores += [float]$input
+    }
+
+    # Check if there are scores to calculate
+    if ($detectionScores.Count -eq 0) {
+        Write-Output "No scores entered. Exiting calculation."
+        return
+    }
+
+    # Calculate the maximum score and sum of remaining scores
+    $maxFindingRiskScore = ($detectionScores | Measure-Object -Maximum).Maximum
+    $sumRemainingScores = ($detectionScores | Where-Object { $_ -ne $maxFindingRiskScore }) | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+
+    # Calculate base entity risk score
+    $baseEntityRiskScore = $maxFindingRiskScore + ($weighting * $sumRemainingScores)
+
+    return $baseEntityRiskScore
+}
+
+# Calculate and display result
+$baseEntityRiskScore = Calculate-EntityRiskScore
+Write-Output "The calculated Base Entity Risk Score is: $baseEntityRiskScore"
