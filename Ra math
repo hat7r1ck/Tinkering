@@ -1,0 +1,25 @@
+function Calculate-EntityRiskScore {
+    param (
+        [int[]]$riskScores,
+        [float]$weighting = 0.3
+    )
+
+    $maxRiskScore = ($riskScores | Measure-Object -Maximum).Maximum
+    $remainingRiskScoresSum = ($riskScores | Where-Object { $_ -ne $maxRiskScore } | Measure-Object -Sum).Sum
+    $baseEntityRiskScore = $maxRiskScore + ($weighting * $remainingRiskScoresSum)
+
+    # Display detailed output
+    Write-Output "Calculation Details:"
+    Write-Output "--------------------"
+    Write-Output "Max Finding Risk Score: $maxRiskScore"
+    Write-Output "Sum of Remaining Risk Scores: $remainingRiskScoresSum"
+    Write-Output "Weighting Factor: $weighting"
+    Write-Output ""
+    Write-Output "Calculation: $maxRiskScore + ($weighting * $remainingRiskScoresSum)"
+    Write-Output "Base Entity Risk Score: $baseEntityRiskScore"
+    Write-Output ""
+    Write-Output "Final Base Entity Risk Score: $baseEntityRiskScore"
+}
+
+# Example usage
+Calculate-EntityRiskScore -riskScores @(40, 80, 80)
