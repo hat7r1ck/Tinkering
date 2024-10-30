@@ -1,0 +1,805 @@
+# ------------------------ Enhanced Regex Generation Tool ------------------------
+
+# Uncomment the following line to install required libraries if not already installed
+# !pip install pandas matplotlib seaborn ipywidgets openpyxl
+
+import re
+import pandas as pd
+import collections
+import matplotlib.pyplot as plt
+import seaborn as sns
+from IPython.display import display, Markdown, HTML, clear_output
+import ipywidgets as widgets
+import string
+import warnings
+import pprint
+import numpy as np
+import logging
+import sys
+
+# ------------------------ Setup Logging ------------------------
+
+# Configure logging
+logging.basicConfig(
+    filename='regex_generation_tool.log',
+    filemode='w',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# ------------------------ Helper Functions ------------------------
+
+def escape_regex(text):
+    """Escape special regex characters in a string."""
+    return re.escape(text)
+
+def validate_data(df):
+    """Validate the uploaded DataFrame."""
+    if df.empty:
+        display(Markdown("**Error:** The uploaded CSV file is empty."))
+        logging.error("Uploaded CSV file is empty.")
+        return False
+    if not all(df.columns):
+        display(Markdown("**Error:** The uploaded CSV file has missing column headers."))
+        logging.error("Uploaded CSV file has missing column headers.")
+        return False
+    return True
+
+def levenshtein(source, target):
+    """Computes the Levenshtein distance between 2 strings."""
+    if len(source) < len(target):
+        return levenshtein(target, source)
+    if len(target) == 0:
+        return len(source)
+    source = np.array(tuple(source))
+    target = np.array(tuple(target))
+    previous_row = np.arange(target.size + 1)
+    for s in source:
+        current_row = previous_row + 1
+        current_row[1:] = np.minimum(current_row[1:], np.add(previous_row[:-1], target != s))
+        current_row[1:] = np.minimum(current_row[1:], current_row[0:-1] + 1)
+        previous_row = current_row
+    return previous_row[-1]
+
+def long_substr(strgs):
+    """
+    Returns a list with the longest common substring sequences from @strgs
+    Based on: http://stackoverflow.com/questions/2892931/longest-common-substring-from-more-than-two-strings-python
+    """
+    strgs = strgs[:]
+    if len(strgs) > 1 and len(strgs[0]) > 0:
+        substrs = []
+        substr = None
+        maxlen = 1
+        while True:
+            if substr is not None and len(substr) >= maxlen:
+                substrs.append(substr)
+                maxlen = len(substr)
+                for i, s in enumerate(strgs):
+                    strgs[i] = s.replace(substr, '', 1)
+            elif substr is not None and len(substr) < maxlen:
+                break
+            substr = ''
+            for i in range(len(strgs[0])):
+                for j in range(len(strgs[0]) - i + 1):
+                    if j > len(substr) and all(strgs[0][i:i+j] in x for x in strgs):
+                        substr = strgs[0][i:i+j]
+            if not substr:
+                break
+        return substrs
+    elif len(strgs) == 1:
+        return [strgs[0]] if len(strgs[0]) > 0 else []
+    else:
+        return []
+
+# ------------------------ Decisioner Class ------------------------
+
+class Decisioner(object):
+    '''Contains static methods that heuristically decide stuff'''
+
+    @staticmethod
+    def generalize_kleen(minim, maxim):
+        '''Decides if it's ok to use +/* instead of the more strict {min,Max}'''
+        if maxim - minim > 4:
+            return True
+
+    @staticmethod
+    def prioritize_LCSeqs(lcss):
+        '''Taking a list of longest common sequences, it decides the best'''
+        # Class priorities (first = highest priority)
+        cls_ordering = ['#', 'O', 'S', 'N', 'A', 'a']
+
+        def class_representative(s):
+            if len(s) == 0:
+                return '#'  # This case should never be reached
+            repc = s[0]
+            for c in s:
+                if c != repc:
+                    return '#'  # Mixed classes
+            return repc
+
+        lcsclss = [class_representative(chars_to_classes(s)) for s in lcss]
+        priorities = []
+        for c in lcsclss:
+            try:
+                priorities.append(cls_ordering.index(c))
+            except ValueError:
+                priorities.append(len(cls_ordering))  # Lowest priority if class not found
+        return priorities
+
+# ------------------------ Character Classes Function ------------------------
+
+def chars_to_classes(cs):
+    '''Replaces characters with their class reference'''
+    # Alphabetic
+    cs = re.sub(r'[a-z]', 'a', cs)
+    cs = re.sub(r'[A-Z]', 'A', cs)
+    # Numerical
+    cs = re.sub(r'[0-9]', 'N', cs)
+    # Space has its own class
+    cs = re.sub(r' ', 'S', cs)
+    # Special
+    cs = re.sub(r'[^aANS]', 'O', cs)
+    return cs
+
+# ------------------------ Tree Generation Functions ------------------------
+
+def gen_tree(strs, tp='chars'):
+    '''Generates a tree with longest common substrings as nodes'''
+    lcss = long_substr(strs)
+    if len(lcss) == 0:
+        lcs = ''
+    else:
+        lcs_prs = Decisioner.prioritize_LCSeqs(lcss)
+        imin = 0
+        xmin = 1000
+        # Find the highest priority (lowest index)
+        for i, p in enumerate(lcs_prs):
+            if p < xmin:
+                xmin = p
+                imin = i
+        lcs = lcss[imin]
+
+    if not lcs:
+        if tp == 'chars':
+            strs = [chars_to_classes(s) for s in strs]
+            return gen_tree(strs, tp='classes')
+        else:
+            return strs
+
+    bgns = []
+    ends = []
+    for s in strs:
+        i = s.find(lcs)
+        bgn = s[:i]
+        bgns.append(bgn)
+        end = s[i+len(lcs):]
+        ends.append(end)
+
+    return {
+                'root': lcs,
+                'left': gen_tree(bgns, tp),
+                'right': gen_tree(ends, tp),
+                'type': tp
+            }
+
+def tree_to_regex(tree):
+    '''
+    [Based on tree generated by gen_tree()] Generates a regex with an inorder
+    traversal.
+    Uses Decisioner class to decide on when to generalize more or less.
+    '''
+    def strs_range(strs):
+        '''Helper function: '''
+        minim = 99999
+        maxim = 0
+        clss = []
+        for s in strs:
+            for sc in s:
+                if sc not in clss:
+                    clss.append(sc)
+            l = len(s)
+            if l > maxim:
+                maxim = l
+            if l < minim:
+                minim = l
+        return (clss, minim, maxim)
+
+    clss = {
+        'a': 'a-z',
+        'A': 'A-Z',
+        'N': '0-9',
+        'S': ' ',
+        'O': '!@#$%^&*()_+=-`~\'";:,<.>/?\\]}\[{',
+    }
+
+    if isinstance(tree, dict):
+        if tree['type'] == 'chars':
+            return  tree_to_regex(tree['left']) + \
+                    re.escape(tree['root']) + \
+                    tree_to_regex(tree['right'])
+        elif tree['type'] == 'classes':
+            out = ''
+            last = ''
+            count = 0
+            for c in tree['root']:
+                if c == last:
+                    count += 1
+                elif last == '':
+                    last = c
+                    count = 1
+                else:
+                    out += '[%s]' % clss[last]
+                    if count > 1:
+                        out += '{%d}' % count
+                    last = c
+                    count = 1
+            out += '[%s]' % clss[last]
+            if count > 1:
+                out += '{%d}' % count
+            return  tree_to_regex(tree['left']) + \
+                    out + \
+                    tree_to_regex(tree['right'])
+    else:
+        cs, m, M = strs_range(tree)
+        if not M:
+            return ''
+        out = '['
+        for c in cs:
+            out += clss[c]
+        out += ']'
+        if M > 1:
+            if Decisioner.generalize_kleen(m, M):
+                if not m:
+                    out += '*'
+                else:
+                    out += '+'
+            else:
+                out += '{%d,%d}' % (m, M)
+        elif m == 0:
+            out += '?'
+        return out
+
+# ------------------------ Main Extraction Functions ------------------------
+
+def extract_regex(strs):
+    """ (The main function)
+    Takes a list of strings and generates a RegEx that matches similar strings.
+    """
+    tree = gen_tree(strs)
+    regex = tree_to_regex(tree)
+    return regex
+
+def extract_regex_html(strs):
+    """Generates an HTML representation of the regex."""
+    tree = gen_tree(strs)
+    html = tree_to_HTML(tree)
+    return html
+
+# ------------------------ Visualization Functions ------------------------
+
+def visualize_matches(pattern, data):
+    """Visualize regex match distribution using a bar chart."""
+    try:
+        matches = data.str.contains(pattern, regex=True, case=False, na=False)
+        match_counts = matches.value_counts().sort_index()
+        labels = ['No Match', 'Match']
+        counts = [match_counts.get(False, 0), match_counts.get(True, 0)]
+
+        plt.figure(figsize=(8,5))
+        sns.barplot(x=labels, y=counts, palette="viridis")
+        plt.title('Regex Match Distribution')
+        plt.xlabel('Match Result')
+        plt.ylabel('Number of Entries')
+
+        # Annotate bars with counts
+        for i, count in enumerate(counts):
+            plt.text(i, count + max(counts)*0.01, str(count), ha='center')
+
+        plt.tight_layout()
+        plt.show()
+    except re.error as e:
+        display(Markdown(f"**Error compiling regex for visualization:** {e}"))
+        logging.error(f"Error compiling regex for visualization: {e}")
+
+# ------------------------ Interactive Components ------------------------
+
+def create_copy_button(regex):
+    """Create a copy button and textarea for the regex."""
+    regex_textarea = widgets.Textarea(
+        value=regex,
+        description='Regex:',
+        disabled=True,
+        layout=widgets.Layout(width='100%', height='100px')
+    )
+    copy_button = widgets.Button(
+        description="Copy Regex",
+        button_style='success',
+        tooltip='Copy the generated regex to clipboard',
+        icon='clipboard',
+        layout=widgets.Layout(width='150px', margin='10px 0px 0px 0px')
+    )
+
+    def on_copy_clicked(b):
+        """Handle the copy button click event."""
+        # Escape backslashes and quotes in regex to prevent JS errors
+        safe_regex = regex.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+        js_code = f"""
+        <script>
+        navigator.clipboard.writeText("{safe_regex}").then(function() {{
+            alert('Regex copied to clipboard!');
+        }}, function(err) {{
+            alert('Could not copy text: ' + err);
+        }});
+        </script>
+        """
+        display(HTML(js_code))
+
+    copy_button.on_click(on_copy_clicked)
+    return widgets.VBox([regex_textarea, copy_button])
+
+def create_test_interface(pattern):
+    """Create a testing interface for the generated regex."""
+    test_input = widgets.Textarea(
+        value='',
+        placeholder='Enter test strings separated by commas',
+        description='Test Inputs:',
+        disabled=False,
+        layout=widgets.Layout(width='100%', height='100px')
+    )
+
+    test_button = widgets.Button(
+        description="Run Tests",
+        button_style='info',
+        tooltip='Test the regex against the inputs',
+        icon='check',
+        layout=widgets.Layout(width='150px', margin='10px 0px 0px 0px')
+    )
+
+    test_output = widgets.Output()
+
+    def on_test_clicked(b):
+        """Handle the test button click event."""
+        with test_output:
+            clear_output()
+            test_strings = [s.strip() for s in test_input.value.split(',') if s.strip()]
+            if not test_strings:
+                print("**No test strings provided.**")
+                return
+            try:
+                compiled_regex = re.compile(pattern, re.IGNORECASE)
+                for s in test_strings:
+                    match = compiled_regex.search(s)
+                    print(f"Input: '{s}' --> Match: {'Yes' if match else 'No'}")
+            except re.error as e:
+                print(f"**Error compiling regex:** {e}")
+                logging.error(f"Error compiling regex during testing: {e}")
+
+    test_button.on_click(on_test_clicked)
+    return widgets.VBox([test_input, test_button, test_output])
+
+def generate_regex_history(history_patterns):
+    """Generate a Markdown formatted list of regex patterns."""
+    if not history_patterns:
+        return "**No patterns generated yet.**"
+    md = "### **Pattern History:**\n"
+    for idx, pat in enumerate(history_patterns, 1):
+        md += f"{idx}. `{pat}`\n"
+    return md
+
+# ------------------------ Bulk Pattern Definition Functions ------------------------
+
+def load_patterns_from_file(file_path):
+    """
+    Load patterns and their rules from an external CSV or Excel file.
+    Expected format:
+    | Pattern                           | Rule           |
+    |-----------------------------------|----------------|
+    | Low disk space.                   | Exactly matches|
+    | Failed to connect to server.      | Contains       |
+    | System overheating detected.      | Starts with    |
+    | Timeout while reading data.       | Ends with      |
+    """
+    try:
+        if file_path.lower().endswith('.csv'):
+            df = pd.read_csv(file_path)
+        elif file_path.lower().endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(file_path)
+        else:
+            display(Markdown("**Error:** Unsupported file format. Please provide a CSV or Excel file."))
+            logging.error("Unsupported file format for bulk pattern import.")
+            return None
+        if 'Pattern' not in df.columns or 'Rule' not in df.columns:
+            display(Markdown("**Error:** The file must contain 'Pattern' and 'Rule' columns."))
+            logging.error("Bulk pattern file missing required columns.")
+            return None
+        patterns = df['Pattern'].dropna().astype(str).tolist()
+        rules = df['Rule'].dropna().astype(str).tolist()
+        return patterns, rules
+    except Exception as e:
+        display(Markdown(f"**Error loading patterns from file:** {e}"))
+        logging.error(f"Error loading patterns from file: {e}")
+        return None
+
+# ------------------------ Tree to HTML Function (Optional) ------------------------
+
+def tree_to_HTML(tree):
+    '''
+    [Based on tree generated by gen_tree()] Generates an HTML block with a nice
+    representation of the regex, using an inorder traversal.
+    Similar to tree_to_regex(), but generates a visual thing, only for display.
+    '''
+    def strs_range(strs):
+        '''Helper function: '''
+        minim = 99999
+        maxim = 0
+        clss = []
+        for s in strs:
+            for sc in s:
+                if sc not in clss:
+                    clss.append(sc)
+            l = len(s)
+            if l > maxim:
+                maxim = l
+            if l < minim:
+                minim = l
+        return (clss, minim, maxim)
+
+    clss = {
+        'a': 'a-z',
+        'A': 'A-Z',
+        'N': '0-9',
+        'S': '<span class="rgt-space-char rgt-tooltip" title="Space character"> </span>',
+        'O': '!@#<i class="fa fa-ellipsis-h rgt-ellipsis"></i>',
+    }
+
+    if isinstance(tree, dict):
+        if tree['type'] == 'chars':
+            return  tree_to_HTML(tree['left']) + \
+                    '<span class="rgt-exact-match rgt-tooltip">' + \
+                    tree['root'].replace(' ', '<span class="rgt-space-char rgt-tooltip" title="Space character"> </span>') + \
+                    '</span>' + \
+                    tree_to_HTML(tree['right'])
+        elif tree['type'] == 'classes':
+            out = ''
+            last = ''
+            count = 0
+            for c in tree['root']:
+                if c == last:
+                    count += 1
+                elif last == '':
+                    last = c
+                    count = 1
+                else:
+                    out += '<span class="rgt-range rgt-tooltip">'
+                    out += '[%s]' % clss[last]
+                    out += '</span>'
+                    if count > 1:
+                        out += '<span class="rgt-counts">'
+                        out += '{%d}' % count
+                        out += '</span>'
+                    last = c
+                    count = 1
+            out += '<span class="rgt-range rgt-tooltip">'
+            out += '[%s]' % clss[last]
+            out += '</span>'
+            if count > 1:
+                out += '<span class="rgt-counts">'
+                out += '{%d}' % count
+                out += '</span>'
+            return  tree_to_HTML(tree['left']) + \
+                    out + \
+                    tree_to_HTML(tree['right'])
+    else:
+        cs, m, M = strs_range(tree)
+        if not M:
+            return ''
+        out = '<span class="rgt-range rgt-tooltip">'
+        out += '['
+        for c in cs:
+            out += clss[c]
+        out += ']'
+        out += '</span>'
+        if M > 1:
+            if Decisioner.generalize_kleen(m, M):
+                if not m:
+                    out += '<span class="rgt-quantifier">'
+                    out += '*'
+                    out += '</span>'
+                else:
+                    out += '<span class="rgt-quantifier">'
+                    out += '+'
+                    out += '</span>'
+            else:
+                out += '<span class="rgt-counts">'
+                out += '{%d,%d}' % (m, M)
+                out += '</span>'
+        elif m == 0:
+            out += '<span class="rgt-quantifier">'
+            out += '?'
+            out += '</span>'
+        return out
+
+# ------------------------ Regex Generation Process ------------------------
+
+def regex_generation_tool():
+    """Initialize and run the Enhanced Regex Generation Tool."""
+    
+    # Initialize pattern history
+    pattern_history = []
+    
+    # Create widgets for user input
+    csv_path_input = widgets.Text(
+        value='',
+        placeholder='Enter CSV file path',
+        description='CSV File:',
+        disabled=False,
+        layout=widgets.Layout(width='100%')
+    )
+    
+    load_button = widgets.Button(
+        description="Load CSV",
+        button_style='primary',
+        tooltip='Click to load the specified CSV file',
+        icon='download',
+        layout=widgets.Layout(width='150px', margin='0px 0px 10px 0px')
+    )
+    
+    column_dropdown = widgets.Dropdown(
+        options=[],
+        description="Select Column:",
+        style={'description_width': 'initial'},
+        layout=widgets.Layout(width='100%'),
+        disabled=True
+    )
+    
+    # Button and input for bulk pattern import
+    bulk_import_button = widgets.Button(
+        description="Import Patterns",
+        button_style='warning',
+        tooltip='Click to import patterns and rules from a file',
+        icon='upload',
+        layout=widgets.Layout(width='150px', margin='0px 0px 10px 0px')
+    )
+    
+    bulk_file_upload = widgets.FileUpload(
+        accept='.csv,.xlsx',
+        multiple=False,
+        description='Upload File',
+        disabled=True
+    )
+    
+    # Toggle between manual rule assignment and bulk import
+    mode_toggle = widgets.ToggleButtons(
+        options=['Manual Rule Assignment', 'Bulk Pattern Import'],
+        description='Mode:',
+        disabled=False,
+        button_style='',
+        tooltips=['Manually assign rules to patterns', 'Import patterns and rules from a file'],
+        layout=widgets.Layout(width='100%')
+    )
+    
+    run_button = widgets.Button(
+        description="Generate Regex",
+        button_style='success',
+        tooltip='Click to generate the regex based on the selected column.',
+        icon='play',
+        layout=widgets.Layout(width='150px', margin='20px 0px 10px 0px'),
+        disabled=True
+    )
+    
+    # Results and History Outputs
+    results_output = widgets.Output(layout={'border': '1px solid black', 'padding': '10px'})
+    history_output = widgets.Output(layout={'border': '1px solid black', 'padding': '10px'})
+    
+    # Define button click events
+    def on_load_clicked(b):
+        with results_output:
+            clear_output()
+            csv_path = csv_path_input.value.strip()
+            if not csv_path:
+                display(Markdown("**Error:** Please enter the CSV file path."))
+                logging.error("CSV file path not provided.")
+                return
+            try:
+                data = pd.read_csv(csv_path)
+                if not validate_data(data):
+                    return
+                display(Markdown("**CSV File Loaded Successfully!**"))
+                column_dropdown.options = list(data.columns)
+                column_dropdown.disabled = False
+                run_button.disabled = False
+                logging.info(f"CSV file loaded: {csv_path}")
+                regex_generation_tool.loaded_data = data
+            except FileNotFoundError:
+                display(Markdown("**Error:** The file was not found. Please check the file path."))
+                logging.error(f"File not found: {csv_path}")
+            except pd.errors.ParserError:
+                display(Markdown("**Error:** The file could not be parsed. Please ensure it is a valid CSV file."))
+                logging.error(f"Parser error for file: {csv_path}")
+            except Exception as e:
+                display(Markdown(f"**An unexpected error occurred:** {e}"))
+                logging.error(f"Unexpected error: {e}")
+    
+    load_button.on_click(on_load_clicked)
+    
+    def on_mode_toggle(change):
+        if change['new'] == 'Bulk Pattern Import':
+            bulk_file_upload.disabled = False
+            bulk_import_button.disabled = False
+        else:
+            bulk_file_upload.disabled = True
+            bulk_import_button.disabled = True
+    
+    mode_toggle.observe(on_mode_toggle, names='value')
+    
+    def on_bulk_import_clicked(b):
+        with results_output:
+            clear_output()
+            if not bulk_file_upload.value:
+                display(Markdown("**Error:** Please upload a CSV or Excel file containing patterns and rules."))
+                logging.error("Bulk import attempted without file upload.")
+                return
+            uploaded_file = list(bulk_file_upload.value.values())[0]
+            content = uploaded_file['content']
+            file_name = uploaded_file['metadata']['name']
+            # Save the uploaded file temporarily
+            with open(file_name, 'wb') as f:
+                f.write(content)
+            logging.info(f"Bulk pattern file uploaded: {file_name}")
+            patterns_rules = load_patterns_from_file(file_name)
+            if patterns_rules:
+                patterns, rules = patterns_rules
+                # Display the imported patterns and rules
+                import_df = pd.DataFrame({'Pattern': patterns, 'Rule': rules})
+                display(import_df)
+                regex_generation_tool.bulk_patterns = (patterns, rules)
+            # Clean up by removing the temporary file
+            import os
+            os.remove(file_name)
+    
+    bulk_import_button.on_click(on_bulk_import_clicked)
+    
+    def on_run_clicked(b):
+        with results_output:
+            clear_output()
+            display(Markdown("**Step 1:** Analyzing data and identifying patterns..."))
+        
+        selected_column = column_dropdown.value
+        if not selected_column:
+            with results_output:
+                display(Markdown("**Error:** Please select a column to analyze."))
+            logging.error("No column selected for analysis.")
+            return
+        
+        data_series = regex_generation_tool.loaded_data[selected_column].dropna().astype(str)
+        if data_series.empty:
+            with results_output:
+                display(Markdown("**Error:** The selected column has no data to analyze."))
+            logging.error("Selected column has no data.")
+            return
+        
+        # Determine if user chose bulk import
+        if mode_toggle.value == 'Bulk Pattern Import' and hasattr(regex_generation_tool, 'bulk_patterns'):
+            patterns, rules = regex_generation_tool.bulk_patterns
+            if len(patterns) != len(rules):
+                with results_output:
+                    display(Markdown("**Error:** The number of patterns does not match the number of rules."))
+                logging.error("Mismatch between number of patterns and rules in bulk import.")
+                return
+            if len(patterns) == 0:
+                with results_output:
+                    display(Markdown("**Error:** No patterns found in the imported file."))
+                logging.error("No patterns found in bulk import.")
+                return
+            # Generate regex
+            regex_pattern = generate_regex(rules, patterns)
+            logging.info("Regex generated from bulk pattern import.")
+        else:
+            # Perform substring analysis to identify top patterns
+            substrings = long_substr(data_series.tolist())
+            if not substrings:
+                with results_output:
+                    display(Markdown("**Error:** No common substrings found to generate regex."))
+                logging.error("No common substrings found in data.")
+                return
+            
+            # Heuristic-based dynamic rule assignment
+            heuristically_assigned_rules = []
+            for substr in substrings:
+                # Example heuristic: If substring is at the start, assign 'Starts with'
+                # If at the end, assign 'Ends with'
+                # If it's a complete match in some entries, assign 'Exactly matches'
+                # Else, assign 'Contains'
+                starts = data_series.str.startswith(substr).mean()
+                ends = data_series.str.endswith(substr).mean()
+                exact = (data_series == substr).mean()
+                if exact > 0.5:
+                    rule = 'Exactly matches'
+                elif starts > 0.5:
+                    rule = 'Starts with'
+                elif ends > 0.5:
+                    rule = 'Ends with'
+                else:
+                    rule = 'Contains'
+                heuristically_assigned_rules.append(rule)
+            logging.info("Heuristic-based rules assigned to patterns.")
+            
+            # Generate regex
+            regex_pattern = generate_regex(heuristically_assigned_rules, substrings)
+            logging.info("Regex generated from heuristic-based pattern assignment.")
+        
+        if not regex_pattern:
+            with results_output:
+                display(Markdown("**Error:** Unable to generate a meaningful regex pattern."))
+            logging.error("Failed to generate regex pattern.")
+            return
+        
+        # Evaluate coverage
+        try:
+            matches = data_series.str.contains(regex_pattern, regex=True, case=False, na=False)
+            coverage = matches.sum() / len(data_series)
+        except re.error as e:
+            with results_output:
+                display(Markdown(f"**Error compiling regex:** {e}"))
+            logging.error(f"Regex compilation error: {e}")
+            return
+        
+        # Display results
+        with results_output:
+            clear_output()
+            display(Markdown(f"### **Generated Regex Pattern:** `{regex_pattern}`"))
+            display(Markdown(f"### **Coverage:** {coverage:.4f}"))
+            visualize_matches(regex_pattern, data_series)
+            # Display copy button and test interface
+            copy_btn = create_copy_button(regex_pattern)
+            test_interface = create_test_interface(regex_pattern)
+            display(copy_btn, test_interface)
+        
+        # Update pattern history
+        pattern_history.append(regex_pattern)
+        with history_output:
+            clear_output()
+            display(Markdown(generate_regex_history(pattern_history)))
+    
+    run_button.on_click(on_run_clicked)
+    
+    # Arrange widgets in layout
+    input_widgets = widgets.VBox([
+        widgets.HTML("<h2>Enhanced Regex Generation Tool</h2>"),
+        widgets.HTML("<b>Step 1:</b> Enter the path to your CSV file below and click 'Load CSV'."),
+        csv_path_input,
+        load_button,
+        widgets.HTML("<b>Step 2:</b> After loading, select the column you want to analyze."),
+        column_dropdown,
+        widgets.HTML("<b>Step 3:</b> Choose the mode for rule assignment."),
+        mode_toggle,
+        # Display bulk import widgets if in bulk mode
+        widgets.HBox([bulk_file_upload, bulk_import_button]),
+        widgets.HTML("<b>Step 4:</b> Click 'Generate Regex' to create the pattern."),
+        run_button
+    ], layout=widgets.Layout(width='100%', padding='10px 20px 10px 20px'))
+    
+    # Combine input and output areas with separators
+    ui = widgets.VBox([
+        input_widgets,
+        widgets.HTML("<hr>"),
+        results_output,
+        widgets.HTML("<hr>"),
+        history_output
+    ], layout=widgets.Layout(width='100%', padding='10px'))
+    
+    # Display the UI
+    display(ui)
+
+# ------------------------ Initialize and Run Tool ------------------------
+
+# Create a container to hold loaded data and bulk patterns
+class RegexGenerationTool:
+    loaded_data = None
+    bulk_patterns = None
+
+regex_generation_tool = RegexGenerationTool()
+
+# Run the tool
+regex_generation_tool_tool_ui = regex_generation_tool()
