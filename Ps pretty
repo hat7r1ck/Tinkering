@@ -1,0 +1,7 @@
+# Prompt user to paste JSON data directly
+Write-Output "Please paste your JSON data below and press Enter:"
+$rawJson = Read-Host
+
+# Convert JSON and display in Out-GridView
+$parsedJson = $rawJson | ConvertFrom-Json
+$parsedJson | Out-GridView
