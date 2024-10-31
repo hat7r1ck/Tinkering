@@ -1,0 +1,47 @@
+import json
+import pandas as pd
+from IPython.display import display, Markdown
+import ipywidgets as widgets
+
+# Dropdown to select output format
+output_format = widgets.Dropdown(
+    options=["Standard", "Markdown"],
+    value="Standard",
+    description="Output Format:",
+    style={'description_width': 'initial'}
+)
+display(output_format)
+
+# Text area to paste JSON data
+print("Please paste your JSON log data below:")
+
+# Capture JSON input
+raw_json = input()
+
+try:
+    # Parse the JSON
+    parsed_json = json.loads(raw_json)
+
+    # Default pretty-print JSON
+    if output_format.value == "Standard":
+        display(Markdown("### Parsed JSON Log Data"))
+        print(json.dumps(parsed_json, indent=4))
+
+        # Convert to DataFrame and display if it's a list
+        if isinstance(parsed_json, list):
+            df = pd.json_normalize(parsed_json)
+            display(Markdown("### Data in Tabular Format"))
+            display(df)
+    # Markdown output option for case notes
+    elif output_format.value == "Markdown":
+        # Parse JSON for Markdown table
+        if isinstance(parsed_json, list):
+            df = pd.json_normalize(parsed_json)
+            markdown_table = df.to_markdown(index=False)
+            display(Markdown("### Markdown Table Output"))
+            display(Markdown(markdown_table))
+        else:
+            display(Markdown("JSON is not in a list format for table conversion."))
+
+except json.JSONDecodeError:
+    print("The input is not valid JSON. Please check the data and try again.")
