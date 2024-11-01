@@ -3,7 +3,7 @@ import pandas as pd
 from IPython.display import display, Markdown
 import ipywidgets as widgets
 
-# Dropdown to select output format
+# Dropdown widget to select the output format
 output_format = widgets.Dropdown(
     options=["Standard", "Markdown"],
     value="Standard",
@@ -11,64 +11,59 @@ output_format = widgets.Dropdown(
     style={'description_width': 'initial'}
 )
 
-# Text area to paste JSON data
+# Text area widget for pasting JSON data
 json_input = widgets.Textarea(
     description="Paste JSON:",
     layout=widgets.Layout(width="100%", height="200px"),
-    placeholder="Paste your JSON log data here...",
+    placeholder="Paste your JSON data here...",
+    style={'description_width': 'initial'}
 )
 
-# Button to process JSON data
-process_button = widgets.Button(description="Process JSON")
+# Button widget to process the JSON data
+process_button = widgets.Button(
+    description="Process JSON",
+    button_style='success'
+)
 
-# Output area for displaying results
+# Output area widget for displaying results
 output = widgets.Output()
 
-# Function to process JSON when button is clicked
+# Function to process the JSON data when the button is clicked
 def process_json(b):
     with output:
         output.clear_output()  # Clear previous outputs
-        raw_json = json_input.value  # Get JSON from text area
+        raw_json = json_input.value.strip()  # Get and strip JSON input
         
         try:
-            # Parse the JSON
+            # Parse the JSON input
             parsed_json = json.loads(raw_json)
             
-            if output_format.value == "Standard":
-                display(Markdown("### Parsed JSON Log Data"))
-                print(json.dumps(parsed_json, indent=4))
-
-                # Convert to DataFrame and display if it's a list or dict of lists
-                if isinstance(parsed_json, list):
-                    df = pd.json_normalize(parsed_json)
+            # Pretty-print the JSON data
+            display(Markdown("### Parsed JSON Data"))
+            pretty_json = json.dumps(parsed_json, indent=4)
+            display(Markdown(f'```json\n{pretty_json}\n```'))
+            
+            # Convert JSON to a pandas DataFrame
+            if isinstance(parsed_json, list) or isinstance(parsed_json, dict):
+                df = pd.json_normalize(parsed_json, sep="_")
+                
+                if output_format.value == "Standard":
+                    # Display DataFrame as an HTML table
                     display(Markdown("### Data in Tabular Format"))
                     display(df)
-                elif isinstance(parsed_json, dict):
-                    df = pd.json_normalize(parsed_json, sep="_")
-                    display(Markdown("### Data in Tabular Format"))
-                    display(df)
-
-            elif output_format.value == "Markdown":
-                if isinstance(parsed_json, list):
-                    # Parse JSON list for Markdown table
-                    df = pd.json_normalize(parsed_json)
+                elif output_format.value == "Markdown":
+                    # Convert DataFrame to a Markdown table using to_markdown()
                     markdown_table = df.to_markdown(index=False)
                     display(Markdown("### Markdown Table Output"))
                     display(Markdown(markdown_table))
-                elif isinstance(parsed_json, dict):
-                    # Parse JSON dict for Markdown table
-                    df = pd.json_normalize(parsed_json, sep="_")
-                    markdown_table = df.to_markdown(index=False)
-                    display(Markdown("### Markdown Table Output"))
-                    display(Markdown(markdown_table))
-                else:
-                    display(Markdown("JSON data format is not compatible with table conversion."))
+            else:
+                display(Markdown("The JSON data format is not compatible with table conversion."))
+                
+        except json.JSONDecodeError as e:
+            display(Markdown(f"**Error:** Invalid JSON data. {str(e)}"))
 
-        except json.JSONDecodeError:
-            print("The input is not valid JSON. Please check the data and try again.")
-
-# Link button to process function
+# Link the button click event to the processing function
 process_button.on_click(process_json)
 
-# Display widgets and output
+# Display all widgets and the output area
 display(output_format, json_input, process_button, output)
