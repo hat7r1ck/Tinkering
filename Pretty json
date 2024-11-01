@@ -29,30 +29,40 @@ def process_json(b):
     with output:
         output.clear_output()  # Clear previous outputs
         raw_json = json_input.value  # Get JSON from text area
+        
         try:
             # Parse the JSON
             parsed_json = json.loads(raw_json)
             
-            # Default pretty-print JSON
             if output_format.value == "Standard":
                 display(Markdown("### Parsed JSON Log Data"))
                 print(json.dumps(parsed_json, indent=4))
 
-                # Convert to DataFrame and display if it's a list
+                # Convert to DataFrame and display if it's a list or dict of lists
                 if isinstance(parsed_json, list):
                     df = pd.json_normalize(parsed_json)
                     display(Markdown("### Data in Tabular Format"))
                     display(df)
-            # Markdown output option for case notes
+                elif isinstance(parsed_json, dict):
+                    df = pd.json_normalize(parsed_json, sep="_")
+                    display(Markdown("### Data in Tabular Format"))
+                    display(df)
+
             elif output_format.value == "Markdown":
-                # Parse JSON for Markdown table
                 if isinstance(parsed_json, list):
+                    # Parse JSON list for Markdown table
                     df = pd.json_normalize(parsed_json)
                     markdown_table = df.to_markdown(index=False)
                     display(Markdown("### Markdown Table Output"))
                     display(Markdown(markdown_table))
+                elif isinstance(parsed_json, dict):
+                    # Parse JSON dict for Markdown table
+                    df = pd.json_normalize(parsed_json, sep="_")
+                    markdown_table = df.to_markdown(index=False)
+                    display(Markdown("### Markdown Table Output"))
+                    display(Markdown(markdown_table))
                 else:
-                    display(Markdown("JSON is not in a list format for table conversion."))
+                    display(Markdown("JSON data format is not compatible with table conversion."))
 
         except json.JSONDecodeError:
             print("The input is not valid JSON. Please check the data and try again.")
