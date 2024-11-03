@@ -1,0 +1,118 @@
+import json
+import pandas as pd
+from IPython.display import display, Markdown, HTML
+import ipywidgets as widgets
+
+# Text area for pasting JSON data
+json_input = widgets.Textarea(
+    value='',
+    placeholder='Paste your JSON data here...',
+    description='JSON Input:',
+    layout=widgets.Layout(width='100%', height='200px'),
+    style={'description_width': 'initial'}
+)
+
+# Dropdown for output format
+output_format = widgets.Dropdown(
+    options=['HTML Table', 'Markdown Table'],
+    value='HTML Table',
+    description='Output Format:',
+    style={'description_width': 'initial'}
+)
+
+# Button to process the JSON
+process_button = widgets.Button(
+    description='Process JSON',
+    button_style='success',
+    tooltip='Click to process the JSON data',
+    icon='check'
+)
+
+# Output area
+output = widgets.Output()
+
+# Function to flatten JSON data
+def flatten_json(y):
+    out = {}
+    def flatten(x, name=''):
+        if isinstance(x, dict):
+            for a in x:
+                flatten(x[a], f'{name}{a}_')
+        elif isinstance(x, list):
+            i = 0
+            for a in x:
+                flatten(a, f'{name}{i}_')
+                i +=1
+        else:
+            out[name[:-1]] = x
+    flatten(y)
+    return out
+
+# Function to process the JSON when the button is clicked
+def process_json(b):
+    output.clear_output()
+    with output:
+        raw_json = json_input.value.strip()
+        if not raw_json:
+            display(Markdown('**Error:** Please paste some JSON data to process.'))
+            return
+        try:
+            parsed_json = json.loads(raw_json)
+            if isinstance(parsed_json, dict):
+                parsed_json = [parsed_json]
+            # Flatten each JSON object in the list
+            flattened_data = [flatten_json(item) for item in parsed_json]
+            df = pd.DataFrame(flattened_data)
+            if df.empty:
+                display(Markdown('**Error:** No data found after parsing the JSON.'))
+                return
+            if output_format.value == 'HTML Table':
+                # Create an HTML table with borders and styling
+                html = df.to_html(index=False, border=1, escape=False)
+                # Enclose in a scrollable div
+                styled_html = f"""
+                <style>
+                .scrollable-table {{
+                    max-height: 500px;
+                    overflow: auto;
+                    border: 1px solid #ccc;
+                }}
+                .scrollable-table table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                }}
+                .scrollable-table th, .scrollable-table td {{
+                    border: 1px solid #ccc;
+                    padding: 5px;
+                    text-align: left;
+                    white-space: nowrap;
+                }}
+                </style>
+                <div class="scrollable-table">
+                    {html}
+                </div>
+                """
+                display(HTML(styled_html))
+            elif output_format.value == 'Markdown Table':
+                # Convert DataFrame to Markdown
+                try:
+                    markdown_table = df.to_markdown(index=False)
+                except:
+                    # If to_markdown is not available
+                    markdown_table = df.to_csv(sep='|', index=False)
+                    # Adjust the markdown table format
+                    header = '| ' + ' | '.join(df.columns) + ' |'
+                    separator = '| ' + ' | '.join(['---'] * len(df.columns)) + ' |'
+                    markdown_rows = markdown_table.strip().split('\n')
+                    markdown_rows = ['| ' + row + ' |' for row in markdown_rows[1:]]
+                    markdown_table = '\n'.join([header, separator] + markdown_rows)
+                display(Markdown(markdown_table))
+        except Exception as e:
+            display(Markdown(f'**Error:** {str(e)}'))
+
+# Attach the function to the button
+process_button.on_click(process_json)
+
+# Display the widgets and output
+ui = widgets.VBox([json_input, output_format, process_button])
+display(ui, output)
