@@ -1,0 +1,184 @@
+# PowerShell Script Analyzer with Hashed Command Names Only
+
+# Function to generate SHA256 hash
+function Get-Hash {
+    param (
+        [string]$InputString
+    )
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputString.ToLower()) # Ensure lowercase
+    $hashBytes = $sha256.ComputeHash($bytes)
+    $hashString = [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+    return $hashString.ToLower()
+}
+
+# Pre-hashed suspicious commands list (hashes only)
+$suspiciousCommands = @{
+    # Example 1: Hashed command for a suspicious command (e.g., "Invoke-Expression")
+    "4e0b854faf91f988afdcf9fb095b1e85f4b6f82c7d29a524e198ab73da94ea1e" = @{
+        "Description" = "Executes a string as a command."
+        "Impact" = 40
+        "SuspiciousParameters" = @{}
+    }
+    # Example 2: Hashed command for another suspicious command (e.g., "Invoke-WebRequest")
+    "31e9a4c8a2d821bcb738d2cf10ac4caaae19ec08deeb7ab14eb53835f35688a7" = @{
+        "Description" = "Accesses data from a URL."
+        "Impact" = 30
+        "SuspiciousParameters" = @{
+            # Hashed parameter names
+            "uri" = 10
+            "outfile" = 10
+        }
+    }
+    # Example 3: Hashed command (e.g., "New-Object")
+    "b49a6d8b9b1e9c0ebc2b7d8d66f8d17f03fb6e5e921ff5d3c5bb0ad45b96e5c7" = @{
+        "Description" = "Creates an instance of a .NET, COM, or other object."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "comobject" = 15  # Hashed parameter names not needed; parameters are case-insensitive
+        }
+    }
+    # Add more hashed commands here...
+}
+
+# Function to calculate risk based on suspicious parameters
+function Get-AdditionalImpact {
+    param (
+        [System.Management.Automation.Language.CommandAst]$cmdAst,
+        [hashtable]$commandDetails
+    )
+    $additionalImpact = 0
+    $suspiciousParams = $commandDetails.SuspiciousParameters
+
+    foreach ($param in $cmdAst.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] }) {
+        $paramName = $param.ParameterName.ToLower()
+        $paramValue = $param.Argument?.ToString()
+
+        if ($suspiciousParams.ContainsKey($paramName)) {
+            $additionalImpact += $suspiciousParams[$paramName]
+        }
+
+        # Detect encoded Base64 or executables in parameter values
+        if ($paramValue -match '([A-Za-z0-9+/=]{100,})') { $additionalImpact += 20 }
+        if ($paramValue -match 'http[s]?://|\.exe$|\.ps1$') { $additionalImpact += 15 }
+    }
+
+    return $additionalImpact
+}
+
+# Function to analyze the script and compare hashed commands
+function Scan-ScriptForCommands {
+    param (
+        [string]$ScriptPath,
+        [hashtable]$suspiciousCommands,
+        [int]$SuspiciousThreshold = 30,
+        [int]$MaliciousThreshold = 100
+    )
+
+    if (-not (Test-Path -Path $ScriptPath)) {
+        Write-Host "File not found at $ScriptPath" -ForegroundColor Red
+        return
+    }
+
+    try {
+        # Read the content and parse the script into an AST
+        $scriptContent = Get-Content -Path $ScriptPath -Raw
+        $scriptAst = [System.Management.Automation.Language.Parser]::ParseInput($scriptContent, [ref]$null, [ref]$null)
+        $commandAsts = $scriptAst.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)
+    }
+    catch {
+        Write-Host "Failed to read or parse the script." -ForegroundColor Red
+        return
+    }
+
+    if ($commandAsts.Count -eq 0) {
+        Write-Host "No commands found in the script."
+        Write-Host "`nOverall Status: Clean"
+        return
+    }
+
+    $totalRiskScore = 0
+    $commandsFound = @()
+    $nonSuspiciousCommands = @()
+
+    foreach ($cmdAst in $commandAsts) {
+        if ($cmdAst.CommandElements.Count -eq 0) { continue }
+
+        # Extract the original command name from the script
+        $commandNameAst = $cmdAst.CommandElements[0]
+        $originalCommandName = $commandNameAst.Extent.Text  # Use Extent.Text to get the exact command as written
+        $hashedCommandName = Get-Hash $originalCommandName.ToLower() # Hash the lowercase command name
+
+        # Compare hashed command with precomputed suspicious command hashes
+        if ($suspiciousCommands.ContainsKey($hashedCommandName)) {
+            $commandDetails = $suspiciousCommands[$hashedCommandName]
+            $baseImpact = $commandDetails.Impact
+
+            $additionalImpact = Get-AdditionalImpact -cmdAst $cmdAst -commandDetails $commandDetails
+            $totalImpact = $baseImpact + $additionalImpact
+            $totalRiskScore += $totalImpact
+
+            $commandsFound += [PSCustomObject]@{
+                OriginalCommandName = $originalCommandName
+                Description         = $commandDetails.Description
+                BaseImpact          = $baseImpact
+                AdditionalImpact    = $additionalImpact
+                TotalImpact         = $totalImpact
+                LineNumber          = $cmdAst.Extent.StartLineNumber
+            }
+        }
+        else {
+            # Handle non-suspicious commands: Try to fetch their description from Get-Help
+            try {
+                $help = Get-Help $originalCommandName -ErrorAction Stop
+                $description = $help.Description[0]
+            }
+            catch {
+                # Default description if Get-Help fails
+                $description = "No description available for this command."
+            }
+
+            $nonSuspiciousCommands += [PSCustomObject]@{
+                CommandName      = $originalCommandName
+                Description      = $description
+                LineNumber       = $cmdAst.Extent.StartLineNumber
+            }
+        }
+    }
+
+    # Output the results
+    Write-Host "`n=== Script Analysis Results ===`n"
+    foreach ($cmd in $commandsFound) {
+        Write-Host "- $($cmd.OriginalCommandName): $($cmd.Description)"
+        Write-Host "  - Total Impact: $($cmd.TotalImpact)"
+        Write-Host "  - Location: Line $($cmd.LineNumber)`n"
+    }
+
+    Write-Host "`nRisk Score Calculation:"
+    Write-Host "- Total Risk Score: $totalRiskScore"
+
+    # Determine overall risk
+    $overallStatus = if ($totalRiskScore -ge $MaliciousThreshold) { "Malicious" }
+                     elseif ($totalRiskScore -ge $SuspiciousThreshold) { "Suspicious" }
+                     else { "Clean" }
+
+    Write-Host "`nOverall Status: $overallStatus"
+
+    # Script Summary Section
+    Write-Host "`n=== Script Summary ==="
+    Write-Host "The script performs the following actions:"
+    
+    foreach ($cmd in $commandsFound) {
+        Write-Host "- $($cmd.OriginalCommandName): $($cmd.Description) on Line $($cmd.LineNumber)"
+    }
+
+    foreach ($cmd in $nonSuspiciousCommands) {
+        Write-Host "- $($cmd.CommandName): $($cmd.Description) on Line $($cmd.LineNumber)"
+    }
+    Write-Host "=== End of Script Summary ==="
+}
+
+# Usage Example
+# Uncomment the lines below to test the script with an example script path
+# $scriptPath = "C:\Path\To\YourScript.ps1"
+# Scan-ScriptForCommands -ScriptPath $scriptPath -suspiciousCommands $suspiciousCommands

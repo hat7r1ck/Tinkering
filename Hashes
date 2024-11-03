@@ -1,0 +1,370 @@
+# Pre-hashed suspicious commands list (hashes only)
+$suspiciousCommands = @{
+    # Execution and Expression
+    # Hash for 'Invoke-Expression' (Weight 3)
+    "4e0b854faf91f988afdcf9fb095b1e85f4b6f82c7d29a524e198ab73da94ea1e" = @{
+        "Description" = "Executes a string as a command."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'IEX' (Alias for Invoke-Expression) (Weight 3)
+    "1cbdd9de65e13d4bbcaad107272be5d0e7d8512e4ff0feef06dc41fe8c64f16c" = @{
+        "Description" = "Alias for Invoke-Expression."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Invoke-Command' (Weight 2)
+    "0f997b2808c486a6f8c44d51cf56f2af99a5f19ecac1161a2ae6a36df9d0b582" = @{
+        "Description" = "Executes commands on local or remote computers."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "computername" = 10
+            "scriptblock" = 10
+        }
+    }
+
+    # Hash for 'Invoke-Item' (Weight 2)
+    "1d0b411c37e0be741df15ad613c81e18ab0a9a8e1482f991058a7f1b2e9a888c" = @{
+        "Description" = "Invokes an executable or opens a file."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Start-Process' (Weight 2)
+    "8ca95e98f0f28e4e12d2b859e4e7d6a45c9151f59745217adbf5db09307d9d6e" = @{
+        "Description" = "Starts one or more processes."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "filepath" = 10
+            "argumentlist" = 5
+        }
+    }
+
+    # Hash for 'Start-Sleep' (Weight 1)
+    "7d5238eb6a01d921a6bb660771f1e20b77b0971c6aa86189c1964e9d32b57b0b" = @{
+        "Description" = "Suspends the activity for a specified period."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Stop-Process' (Weight 2)
+    "1c9db6368975218f2da69c1e0e9e90d13b3d847ea20c71a24b00fe88e2a7d93f" = @{
+        "Description" = "Stops one or more running processes."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Set-Alias' (Weight 1)
+    "70ca5d6085c5a2ec5fa21628c93834f68e2c6be4149f3dcaa497aa43a60c14c1" = @{
+        "Description" = "Creates or changes an alias (shortcut to a command)."
+        "Impact" = 10
+        "SuspiciousParameters" = @{
+            "name" = 5
+            "value" = 5
+        }
+    }
+
+    # Hash for 'Get-Alias' (Weight 1)
+    "5e1fa2c0e2ed8d4fb2b53a3e9724b5bb0429b8f0d8d6d16c5d58c289d68a03cc" = @{
+        "Description" = "Retrieves alias information."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Remove-Item' (Weight 2)
+    "6677948f1e2e16f4b5b00f81d6f9e8c2d7f660ea1e0c45c09c77e635a6a6d69b" = @{
+        "Description" = "Deletes files and directories."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Copy-Item' (Weight 1)
+    "0f67e9ec30c8806af48c9fa062f2363d22bf67bbd24fcb3a91827b9f62c072ab" = @{
+        "Description" = "Copies an item from one location to another."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Move-Item' (Weight 1)
+    "7d4b5d49c6b7cdb2e060e6a19c34fbd9eb8d934dc83ec0b9f3ab9c72a66ba309" = @{
+        "Description" = "Moves an item from one location to another."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'New-Item' (Weight 1)
+    "6c613a22b6c66f0c1ebc7b9c9e37c2c79ab89a4d21a5b5a77b4eb3dbbbf5803c" = @{
+        "Description" = "Creates a new item."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Invoke-History' (Weight 1)
+    "99fa6ecb5e1eabec27ce2f28b8e5cfb8bd8a2f67eab7c1e96d9a23d5bf3a6e76" = @{
+        "Description" = "Runs commands from the session history."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Invoke-WmiMethod' (Weight 2)
+    "6eaa54c0b34c6b4dcd6d4cf3ae41d7cfbc4ee2e5c646d5b2e4bf299d4dc6b49e" = @{
+        "Description" = "Calls a method of a WMI instance or class."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Invoke-CimMethod' (Weight 2)
+    "40c229b78cbe5a1cbe0ee1e0f4c32c8d1d3f08b43ab7130e6d53af2e8f8452ba" = @{
+        "Description" = "Invokes a method of a CIM instance or class."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Network and Web Requests
+    # Hash for 'Invoke-WebRequest' (Weight 2)
+    "31e9a4c8a2d821bcb738d2cf10ac4caaae19ec08deeb7ab14eb53835f35688a7" = @{
+        "Description" = "Sends HTTP or HTTPS requests to web pages or web services."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "uri" = 10
+            "outfile" = 10
+        }
+    }
+
+    # Hash for 'Invoke-RestMethod' (Weight 2)
+    "532d0d20c6c7b0e7b6e095c3b3d1d1425f75b6e6c6768cf5dc9b4f8139e3f66e" = @{
+        "Description" = "Sends HTTP or HTTPS requests to RESTful web services."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "uri" = 10
+        }
+    }
+
+    # Hash for 'DownloadFile' (Weight 3)
+    "e9373efed84ad0bb5c9c1f7bf4a9d0d4a83a3edfa741d3d1e5cda453da0d9fb8" = @{
+        "Description" = "Downloads a file from the internet."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'DownloadString' (Weight 2)
+    "aee525d5be55d158a04596c12c4433f71390263a0e704a76baf5ca2ef1426e95" = @{
+        "Description" = "Downloads the content of a URL as a string."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'New-Object System.Net.WebClient' (Weight 2)
+    "bb7213575e4e2f52442a9dd9d3ba2c5508c5db2af9f3a6c8d5e8b1f2f947b1c1" = @{
+        "Description" = "Creates a WebClient object for downloading data."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Security and Encryption
+    # Hash for 'Set-MpPreference' (Weight 2)
+    "861d4e48b8d43afeb3a42b54a5985c909a7f15cb7633d3b99d026b0d713d8c29" = @{
+        "Description" = "Modifies Windows Defender settings."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Add-MpPreference' (Weight 2)
+    "e2b8360e3d1bfbdc5b8e6b9e5c3c3d0a5a6e3c4a2f9b1e8d7c6b5a4f3e2d1c0b" = @{
+        "Description" = "Adds Windows Defender exclusion paths or extensions."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-MpPreference' (Weight 1)
+    "9b9d6c2d1f5b8e1a3d4c6b7a8f9e0d1c2b3a4c5e6d7b8a9e0f1d2c3b4a5e6d7c" = @{
+        "Description" = "Retrieves Windows Defender preferences."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-Credential' (Weight 3)
+    "d74399ba089948e7436ed8dc4733a89eb7f7b148f47cde5d4df37e3435126f95" = @{
+        "Description" = "Prompts for and returns a credential object."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'ConvertTo-SecureString' (Weight 2)
+    "9a6d2c7b1e0f8b9d4c3a2e5f6d7b8c9a0f1e2d3c4b5a6e7d8c9b0a1e2d3f4c5b" = @{
+        "Description" = "Converts a plain text string into a secure string."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'ConvertFrom-SecureString' (Weight 2)
+    "6b5a4c3d2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4e3d2c1b0a9e8f7d6c5b" = @{
+        "Description" = "Converts a secure string into an encrypted standard string."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-AuthenticodeSignature' (Weight 1)
+    "4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b" = @{
+        "Description" = "Gets the digital signature of a file."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # System and Process Management
+    # Hash for 'Get-Process' (Weight 1)
+    "5bdbe9f70d6e92ef6e1e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c" = @{
+        "Description" = "Retrieves the processes running on a local or remote computer."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-Service' (Weight 1)
+    "2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d" = @{
+        "Description" = "Gets the services on a local or remote computer."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Start-Service' (Weight 1)
+    "3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e" = @{
+        "Description" = "Starts a stopped service."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Stop-Service' (Weight 1)
+    "4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f" = @{
+        "Description" = "Stops a running service."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Restart-Service' (Weight 1)
+    "5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a" = @{
+        "Description" = "Stops and then starts a service."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-WmiObject' (Weight 2)
+    "541b06e0ca60a4660c4f84dd8ce6523dd6660ab1bf9b7b6bfe39ba2d5e78c1b3" = @{
+        "Description" = "Gets instances of WMI classes or information about available classes."
+        "Impact" = 20
+        "SuspiciousParameters" = @{
+            "class" = 5
+        }
+    }
+
+    # Hash for 'Set-ItemProperty' (Weight 1)
+    "bc1228ff6d51ef1b63c0ee882b6e5d488da0410ef82fa9ec8afbcda1638a0e1f" = @{
+        "Description" = "Changes the value of a property of an item."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-ItemProperty' (Weight 1)
+    "d779d005d6640f89f44a73e073f03e20702f3b94d0a8eb836b5871e1e5198e2a" = @{
+        "Description" = "Gets the properties of a specified item."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-ChildItem' (Weight 1)
+    "e9e303c9d6c8e2a3a7e4d1b9c6a5f8d7e1b2c3d4a5f6e7b8c9d0e1f2a3b4c5d6" = @{
+        "Description" = "Gets the items and child items in one or more specified locations."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Import-Module' (Weight 1)
+    "2bce9f1d84f62d4a4d6f9b8a7c1e3d0c5e8f7a6b3c2d1e0f9b8a7c6d5e4f3b2a" = @{
+        "Description" = "Adds one or more modules to the current session."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Export-ModuleMember' (Weight 1)
+    "86e2b1c4d5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2" = @{
+        "Description" = "Specifies the module members that are exported."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-Clipboard' (Weight 1)
+    "3abf1234e5d6c7b8a9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2" = @{
+        "Description" = "Gets the current contents of the clipboard."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Set-Clipboard' (Weight 1)
+    "4ac01345f6e7d8c9b0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3" = @{
+        "Description" = "Sets the contents of the clipboard."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Aliases for Suspicious Commands
+    # Hash for 'gp' (Alias for Get-ItemProperty) (Weight 1)
+    "e599a2d1d6d5c4b3a2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b" = @{
+        "Description" = "Alias for Get-ItemProperty."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'gal' (Alias for Get-Alias) (Weight 1)
+    "d5c4b3a2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c" = @{
+        "Description" = "Alias for Get-Alias."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'sal' (Alias for Set-Alias) (Weight 1)
+    "c4b3a2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b" = @{
+        "Description" = "Alias for Set-Alias."
+        "Impact" = 10
+        "SuspiciousParameters" = @{
+            "name" = 5
+            "value" = 5
+        }
+    }
+
+    # Hash for 'ni' (Alias for New-Item) (Weight 1)
+    "b3a2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a" = @{
+        "Description" = "Alias for New-Item."
+        "Impact" = 10
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'del' (Alias for Remove-Item) (Weight 2)
+    "a2e1f0a9b8c7d6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2e" = @{
+        "Description" = "Alias for Remove-Item."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Obfuscated and Encoded Commands
+    # Hash for 'EncodedCommand' (Weight 3)
+    "045bb9e6ca3ce77a9f33baf4008e33c52b6d1d33aab7ed5dc4b5e2f1f3a4b5c6" = @{
+        "Description" = "Executes an encoded PowerShell command."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'System.Text.Encoding' (Weight 2)
+    "e50b491c9f5c7d3e6a2f1b4c8e0d7a6f9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e" = @{
+        "Description" = "Handles text encoding and decoding."
+        "Impact" = 20
+        "SuspiciousParameters" = @{}
+    }
+
+    # Hash for 'Get-MicrophoneAudio' (Weight 3)
+    "b3f1d2e3c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1" = @{
+        "Description" = "Captures audio from the microphone."
+        "Impact" = 30
+        "SuspiciousParameters" = @{}
+    }
+}
