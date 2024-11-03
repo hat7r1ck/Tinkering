@@ -1,0 +1,51 @@
+function Calculate-EntityRiskScore {
+    param (
+        [float]$weighting = 0.3  # Default weighting factor
+    )
+
+    # Prompt for individual detection scores and store them in an array
+    $detectionScores = @()
+    while ($true) {
+        $input = Read-Host "Enter a detection risk score (or type 'done' to finish)"
+
+        # Check if the input is 'done' (case-insensitive) to exit the loop
+        if ($input -match '^done$') { break }
+
+        # Check if input is empty or non-numeric
+        if (-not [float]::TryParse($input, [ref]$null)) {
+            Write-Output "Invalid input. Please enter a valid number or type 'done' to finish."
+            continue
+        }
+
+        # Add the valid input to the array
+        $detectionScores += [float]$input
+    }
+
+    # Check if there are scores to calculate
+    if ($detectionScores.Count -eq 0) {
+        Write-Output "No scores entered. Exiting calculation."
+        return
+    }
+
+    # Calculate the maximum score and sum of remaining scores
+    $maxRiskScore = ($detectionScores | Measure-Object -Maximum).Maximum
+    $remainingRiskScoresSum = ($detectionScores | Measure-Object -Sum).Sum - $maxRiskScore
+
+    # Calculate base entity risk score
+    $baseEntityRiskScore = $maxRiskScore + ($weighting * $remainingRiskScoresSum)
+
+    # Display detailed output
+    Write-Output "Calculation Details:"
+    Write-Output "--------------------"
+    Write-Output "Max Finding Risk Score: $maxRiskScore"
+    Write-Output "Sum of Remaining Risk Scores: $remainingRiskScoresSum"
+    Write-Output "Weighting Factor: $weighting"
+    Write-Output ""
+    Write-Output "Calculation: $maxRiskScore + ($weighting * $remainingRiskScoresSum)"
+    Write-Output "Base Entity Risk Score: $baseEntityRiskScore"
+    Write-Output ""
+    Write-Output "Final Base Entity Risk Score: $baseEntityRiskScore"
+}
+
+# Calculate and display result
+Calculate-EntityRiskScore

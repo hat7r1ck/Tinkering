@@ -1,0 +1,55 @@
+import json
+import pandas as pd
+from datetime import datetime
+import ipywidgets as widgets
+from IPython.display import clear_output
+
+class SIEMParser:
+    def __init__(self):
+        self.text_area = widgets.Textarea(
+            placeholder='Paste SIEM JSON log here',
+            layout=widgets.Layout(width='100%', height='300px')
+        )
+        self.parse_button = widgets.Button(description='Parse Log')
+        self.output = widgets.Output()
+        
+        self.parse_button.on_click(self.parse_log)
+        
+        display(widgets.VBox([
+            self.text_area,
+            self.parse_button,
+            self.output
+        ]))
+    
+    def parse_log(self, _):
+        with self.output:
+            clear_output()
+            try:
+                # Parse JSON
+                data = json.loads(self.text_area.value)
+                
+                # Ensure we're working with a list
+                if not isinstance(data, list):
+                    data = [data]
+                
+                # Create DataFrame
+                df = pd.json_normalize(data, sep='.')
+                
+                # Display full data
+                print(f"Number of fields: {len(df.columns)}\n")
+                print("Full Data Preview:")
+                pd.set_option('display.max_columns', None)
+                pd.set_option('display.max_rows', None)
+                pd.set_option('display.width', None)
+                display(df)
+                
+                # Save to CSV
+                filename = f'siem_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+                df.to_csv(filename, index=False)
+                print(f"\nSaved to: {filename}")
+                
+            except Exception as e:
+                print(f"Error: {str(e)}")
+
+# Create parser
+parser = SIEMParser()
