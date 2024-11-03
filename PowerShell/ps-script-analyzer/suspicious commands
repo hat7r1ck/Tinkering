@@ -1,0 +1,674 @@
+# Define suspicious commands with updated impact scores and suspicious parameters
+$suspiciousCommands = @{
+
+    # Execution and Expression
+    'Invoke-Expression' = @{
+        Description = 'Executes a string as a command.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'IEX' = @{
+        Description = 'Alias for Invoke-Expression.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Command' = @{
+        Description = 'Executes commands on local or remote computers.';
+        Impact = 20;
+        SuspiciousParameters = @{
+            'ComputerName' = 10;
+            'ScriptBlock' = 10;
+        };
+    };
+    'Invoke-Item' = @{
+        Description = 'Invokes an executable or opens a file.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Start-Process' = @{
+        Description = 'Starts one or more processes.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Start-Sleep' = @{
+        Description = 'Suspends the activity for a specified period.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Stop-Process' = @{
+        Description = 'Stops one or more running processes.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Set-Alias' = @{
+        Description = 'Creates or changes an alias (shortcut to a command).';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Get-Alias' = @{
+        Description = 'Retrieves alias information.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Remove-Item' = @{
+        Description = 'Deletes files and directories.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Copy-Item' = @{
+        Description = 'Copies an item from one location to another.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Move-Item' = @{
+        Description = 'Moves an item from one location to another.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'New-Item' = @{
+        Description = 'Creates a new item.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-History' = @{
+        Description = 'Runs commands from the session history.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-WmiMethod' = @{
+        Description = 'Calls a method of a WMI instance or class.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-CimMethod' = @{
+        Description = 'Invokes a method of a CIM instance or class.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Network and Web Requests
+    'Invoke-WebRequest' = @{
+        Description = 'Sends HTTP or HTTPS requests to web pages or web services.';
+        Impact = 20;
+        SuspiciousParameters = @{
+            'Uri' = 10;
+            'Method' = 10;
+        };
+    };
+    'Invoke-RestMethod' = @{
+        Description = 'Sends HTTP or HTTPS requests to RESTful web services.';
+        Impact = 20;
+        SuspiciousParameters = @{
+            'Uri' = 10;
+            'Method' = 10;
+        };
+    };
+    'DownloadFile' = @{
+        Description = 'Downloads a file from the internet.';
+        Impact = 30;
+        SuspiciousParameters = @{
+            'Uri' = 10;
+        };
+    };
+    'DownloadString' = @{
+        Description = 'Downloads the content of a URL as a string.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'New-Object System.Net.WebClient' = @{
+        Description = 'Creates a WebClient object for downloading data.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Net.WebClient' = @{
+        Description = 'Used to download data from the internet.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Start-BitsTransfer' = @{
+        Description = 'Creates a file transfer job using BITS.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'System.Net.Sockets.TcpClient' = @{
+        Description = 'Provides client connections for TCP network services.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'System.Net.Sockets.UdpClient' = @{
+        Description = 'Provides simple UDP network services.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+
+    # Security and Encryption
+    'Set-MpPreference' = @{
+        Description = 'Modifies Windows Defender settings.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Add-MpPreference' = @{
+        Description = 'Adds Windows Defender exclusion paths or extensions.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Get-MpPreference' = @{
+        Description = 'Retrieves Windows Defender preferences.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Get-Credential' = @{
+        Description = 'Prompts for and returns a credential object.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'ConvertTo-SecureString' = @{
+        Description = 'Converts a plain text string into a secure string.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'ConvertFrom-SecureString' = @{
+        Description = 'Converts a secure string into an encrypted standard string.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-AuthenticodeSignature' = @{
+        Description = 'Gets the digital signature of a file.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Mimikatz' = @{
+        Description = 'Runs Mimikatz to extract passwords and hashes from memory.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Mimikatz' = @{
+        Description = 'Runs Mimikatz to extract credentials from memory.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+
+    # System and Process Management
+    'Get-Process' = @{
+        Description = 'Retrieves the processes running on a local or remote computer.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Get-Service' = @{
+        Description = 'Gets the services on a local or remote computer.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Start-Service' = @{
+        Description = 'Starts a stopped service.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Stop-Service' = @{
+        Description = 'Stops a running service.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Restart-Service' = @{
+        Description = 'Stops and then starts a service.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-WmiObject' = @{
+        Description = 'Gets instances of WMI classes or information about available classes.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Set-ItemProperty' = @{
+        Description = 'Changes the value of a property of an item.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-ItemProperty' = @{
+        Description = 'Gets the properties of a specified item.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Get-ChildItem' = @{
+        Description = 'Gets the items and child items in one or more specified locations.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Import-Module' = @{
+        Description = 'Adds one or more modules to the current session.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Export-ModuleMember' = @{
+        Description = 'Specifies the module members that are exported.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Get-Clipboard' = @{
+        Description = 'Gets the current contents of the clipboard.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Set-Clipboard' = @{
+        Description = 'Sets the contents of the clipboard.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'New-Object System.DirectoryServices.DirectoryEntry' = @{
+        Description = 'Creates a new Active Directory object.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Set-ADAccountPassword' = @{
+        Description = 'Resets the password for an Active Directory account.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Get-ADUser' = @{
+        Description = 'Gets one or more Active Directory users.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-ADGroupMember' = @{
+        Description = 'Gets members of an Active Directory group.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Set-Item' = @{
+        Description = 'Changes the value of an item to the value specified in the command.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-Content' = @{
+        Description = 'Gets the content of the item at the specified location.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Set-Content' = @{
+        Description = 'Writes or replaces the content in an item with new content.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Remove-ItemProperty' = @{
+        Description = 'Deletes a property and its value from an item.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Reflection and Obfuscation
+    'Add-Type' = @{
+        Description = 'Adds a .NET type (class) to a PowerShell session.';
+        Impact = 20;
+        SuspiciousParameters = @{
+            'TypeDefinition' = 10;
+        };
+    };
+    'Reflection.Assembly' = @{
+        Description = 'Allows loading and manipulating .NET assemblies.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    '[System.Convert]::FromBase64String' = @{
+        Description = 'Converts a Base64-encoded string to a byte array.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    '[System.Text.Encoding]::Unicode.GetString' = @{
+        Description = 'Decodes a byte array into a string using Unicode encoding.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Convert' = @{
+        Description = 'Converts a value from one type to another.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Compress-Archive' = @{
+        Description = 'Creates a zipped (compressed) archive file.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Expand-Archive' = @{
+        Description = 'Extracts files from a zipped (compressed) archive file.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Out-EncodedCommand' = @{
+        Description = 'Encodes a command for use with PowerShell.exe -EncodedCommand.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Select-String' = @{
+        Description = 'Finds text in strings and files using regular expressions.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Measure-Object' = @{
+        Description = 'Calculates the numeric properties of objects.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'ForEach-Object' = @{
+        Description = 'Performs an operation on each item in a collection.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Where-Object' = @{
+        Description = 'Selects objects from a collection based on their property values.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'System.Reflection.Assembly::Load' = @{
+        Description = 'Loads an assembly into the application domain.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    '[Activator]::CreateInstance' = @{
+        Description = 'Creates an instance of a type at runtime.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Member' = @{
+        Description = 'Dynamically invokes a method or property.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    '[DllImport]' = @{
+        Description = 'Imports a method from an unmanaged DLL.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    '[System.Runtime.InteropServices.Marshal]::PtrToStructure' = @{
+        Description = 'Converts an unmanaged memory pointer to a managed object.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    '[System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer' = @{
+        Description = 'Creates a delegate from a function pointer.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Scheduled Tasks and Jobs
+    'Register-ScheduledTask' = @{
+        Description = 'Creates a new scheduled task.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Start-ScheduledTask' = @{
+        Description = 'Starts a registered scheduled task.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-ScheduledTask' = @{
+        Description = 'Gets the scheduled tasks on the local computer.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Unregister-ScheduledTask' = @{
+        Description = 'Deletes a scheduled task.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Start-Job' = @{
+        Description = 'Starts a PowerShell background job.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Get-Job' = @{
+        Description = 'Gets PowerShell background jobs that are running.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'Start-ThreadJob' = @{
+        Description = 'Starts a thread-based background job.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Credentials and Authentication
+    'Invoke-CredentialInjection' = @{
+        Description = 'Injects credentials into the system for unauthorized access.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-CredentialsPhish' = @{
+        Description = 'Phishes for user credentials.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+
+    # Aliases for Suspicious Commands
+    'gp' = @{
+        Description = 'Alias for Get-ItemProperty.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'gal' = @{
+        Description = 'Alias for Get-Alias.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'sal' = @{
+        Description = 'Alias for Set-Alias.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'ni' = @{
+        Description = 'Alias for New-Item.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'del' = @{
+        Description = 'Alias for Remove-Item.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'ls' = @{
+        Description = 'Alias for Get-ChildItem.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'dir' = @{
+        Description = 'Alias for Get-ChildItem.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'copy' = @{
+        Description = 'Alias for Copy-Item.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+    'move' = @{
+        Description = 'Alias for Move-Item.';
+        Impact = 10;
+        SuspiciousParameters = @{};
+    };
+
+    # Potentially Malicious Commands
+    'Invoke-Shellcode' = @{
+        Description = 'Executes shellcode in memory.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-ReflectivePEInjection' = @{
+        Description = 'Injects a PE (Portable Executable) into memory reflectively.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Obfuscation' = @{
+        Description = 'Automates the obfuscation of PowerShell scripts.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-TokenManipulation' = @{
+        Description = 'Manipulates access tokens for privilege escalation.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-PSInject' = @{
+        Description = 'Injects PowerShell code into running processes.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-DllInjection' = @{
+        Description = 'Performs DLL injection into a target process.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-PowerShellTcp' = @{
+        Description = 'Uses TCP connections to execute PowerShell commands.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-PowerShellIcmp' = @{
+        Description = 'Uses ICMP packets to execute PowerShell commands.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'PowerShell.exe -EncodedCommand' = @{
+        Description = 'Executes Base64-encoded commands, often used for obfuscation.';
+        Impact = 30;
+        SuspiciousParameters = @{
+            'EncodedCommand' = 10;
+        };
+    };
+    'CertUtil' = @{
+        Description = 'Used to download files or encode/decode data.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Mshta' = @{
+        Description = 'Executes Microsoft HTML Application host files, can run malicious scripts.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Rundll32' = @{
+        Description = 'Runs DLLs, can be abused to execute code.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Regsvr32' = @{
+        Description = 'Registers DLLs, can be abused to execute code.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-MassMimikatz' = @{
+        Description = 'Runs multiple instances of Mimikatz for credential harvesting.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-PrivilegeEscalation' = @{
+        Description = 'Performs privilege escalation on the system.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'PowerUp' = @{
+        Description = 'Performs privilege escalation on the system.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'PowerView' = @{
+        Description = 'Enumerates network shares and gathers information for lateral movement.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'PowerCat' = @{
+        Description = 'A PowerShell-based tool similar to netcat for network communication.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+
+    # Exfiltration and Persistence
+    'Add-Exfiltration' = @{
+        Description = 'Adds exfiltration capabilities to the script.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Add-Persistence' = @{
+        Description = 'Adds persistence mechanisms to maintain script execution.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Persistence' = @{
+        Description = 'Invokes persistence mechanisms.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-Exfiltration' = @{
+        Description = 'Performs data exfiltration from the system.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Create-MultipleSessions' = @{
+        Description = 'Creates multiple PowerShell sessions for persistence.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'New-ElevatedPersistenceOption' = @{
+        Description = 'Creates a new elevated persistence option.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+
+    # Obfuscated and Encoded Commands
+    'EncodedCommand' = @{
+        Description = 'Executes an encoded PowerShell command.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'System.Text.Encoding' = @{
+        Description = 'Handles text encoding and decoding.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    '[System.IO.Compression]' = @{
+        Description = 'Used for compressing or decompressing data.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    '[System.Convert]::ToBase64String' = @{
+        Description = 'Converts a byte array to a Base64-encoded string.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'FromBase64String' = @{
+        Description = 'Converts a Base64-encoded string to a byte array.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Clipboard and Audio Manipulation
+    'Get-MicrophoneAudio' = @{
+        Description = 'Captures audio from the microphone.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+
+    # Miscellaneous
+    'Payload' = @{
+        Description = 'Represents the malicious payload being delivered.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Port-Scan' = @{
+        Description = 'Performs a port scan to identify open ports on target systems.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Invoke-PortScan' = @{
+        Description = 'Performs a port scan to identify open ports on target systems.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+    'Privesc' = @{
+        Description = 'Privilege escalation techniques and commands.';
+        Impact = 30;
+        SuspiciousParameters = @{};
+    };
+    'Sherlock' = @{
+        Description = 'A reconnaissance tool for information gathering.';
+        Impact = 20;
+        SuspiciousParameters = @{};
+    };
+}
