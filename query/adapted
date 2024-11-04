@@ -1,0 +1,39 @@
+// Placeholder variables (will be prompted when running the query)
+$hostname_value = "${hostname_value}"        // e.g., "HOST-123" or leave empty
+$ip_address_value = "${ip_address_value}"    // e.g., "192.168.1.10" or leave empty
+$user_id_value = "${user_id_value}"          // e.g., "user@example.com" or leave empty
+
+// Combine hostnames, IPs, and user IDs from both principal and target
+$hostnames = group(principal.hostname, target.hostname)
+$ip_addresses = group(principal.ip, target.ip)
+$user_ids = group(principal.user.userid, target.user.userid)
+
+// Apply filters only if the variables are not empty
+$filter_hostname = if($hostname_value != "", $hostnames == $hostname_value, true)
+$filter_ip = if($ip_address_value != "", $ip_addresses == $ip_address_value, true)
+$filter_user = if($user_id_value != "", $user_ids == $user_id_value, true)
+
+// Combine filters
+$filter = $filter_hostname and $filter_ip and $filter_user
+
+// Apply the combined filter
+$filter
+
+// Rest of the query
+$date = timestamp.get_date(metadata.event_timestamp.seconds)
+match:
+    $date
+
+outcome:
+    $detection_count = count(detection.id)
+    $event_types = array_distinct(metadata.event_type)
+    $severity_counts = {
+        "CRITICAL": sum(if(security_result.severity == "CRITICAL", 1, 0)),
+        "HIGH": sum(if(security_result.severity == "HIGH", 1, 0)),
+        "MEDIUM": sum(if(security_result.severity == "MEDIUM", 1, 0)),
+        "LOW": sum(if(security_result.severity == "LOW", 1, 0))
+    }
+    $unique_processes = array_distinct(principal.process.file.full_path)
+
+order:
+    $date asc
