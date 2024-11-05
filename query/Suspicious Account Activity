@@ -1,0 +1,70 @@
+// Placeholder variables
+$failed_attempt_threshold = "${failed_attempt_threshold}"  // e.g., 5
+$allowed_countries = "${allowed_countries}"                // e.g., "USA,UK" or leave empty
+$high_privilege_roles = "${high_privilege_roles}"          // e.g., "admin,superuser" or leave empty
+
+// Split allowed countries and high privilege roles into arrays
+$allowed_country_list = split($allowed_countries, ",")
+$high_privilege_role_list = split($high_privilege_roles, ",")
+
+// Define the suspicious account activity filter
+$suspicious_activity_filter = (
+    (security_result.category in ["AUTHENTICATION_FAILURE", "PRIVILEGE_ESCALATION"]) and
+    (
+        ($allowed_countries == "" or principal.location.country_or_region not in $allowed_country_list) or
+        (principal.user.role in $high_privilege_role_list)
+    )
+)
+
+// Apply the filter
+$suspicious_activity_filter
+
+// Extract relevant fields using CrowdStrike mappings
+$user = principal.user.userid
+$user_role = principal.user.role
+$source_ip = network.source.ip
+$destination_ip = network.destination.ip
+$event_id = metadata.event_id
+$timestamp = metadata.event_timestamp.seconds
+$asset_id = principal.asset_id
+$asset_hostname = principal.hostname
+$location_city = principal.location.city
+$location_country = principal.location.country_or_region
+$threat_verdict = security_result.threat_verdict
+
+// Label Event IDs with Descriptive Names
+$event_label = case(
+    $event_id == "4625", "Failed Logon",
+    $event_id == "4624", "Successful Logon",
+    $event_id == "4672", "Special Privileges Assigned",
+    $event_id == "4648", "Logon Attempt with Explicit Credentials",
+    $event_id == "4688", "Process Creation",
+    $event_id == "4634", "Logoff",
+    "Other"
+)
+
+// Group by user, source IP, and date
+$date = timestamp.get_date($timestamp, "Etc/UTC")
+match:
+    $user, $source_ip, $date
+
+// Aggregate outcomes
+outcome:
+    $failed_attempts = count_if($event_label == "Failed Logon")
+    $successful_logons = count_if($event_label == "Successful Logon")
+    $privilege_escalations = count_if($event_label == "Special Privileges Assigned")
+    $unique_event_labels = array_distinct([$event_label])
+    $asset_ids = array_distinct([$asset_id])
+    $asset_hostnames = array_distinct([$asset_hostname])
+    $threat_verdicts = array_distinct([$threat_verdict])
+    $locations = array_distinct([$location_city, $location_country])
+    $formatted_date = timestamp.get_date($date, "Etc/UTC")
+
+// Filter groups exceeding the failed attempt threshold or high privilege role activities
+filter:
+    $failed_attempts >= $failed_attempt_threshold or
+    (array_contains($high_privilege_role_list, $user_role) and $privilege_escalations > 0)
+
+// Order by failed attempts descending and date ascending
+order:
+    $failed_attempts desc, $date asc
