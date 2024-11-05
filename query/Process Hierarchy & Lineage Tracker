@@ -1,0 +1,51 @@
+// Placeholder variables
+$process_name = "${process_name}"      // e.g., "example.exe" or leave empty
+
+// Define the process name filter
+$process_filter = (
+    principal.process.file.full_path == $process_name or 
+    target.process.file.full_path == $process_name or 
+    $process_name == ""
+)
+
+// Apply the filter
+$process_filter
+
+// Extract relevant fields using CrowdStrike mappings
+$grandparent_process = principal.process.parent.parent.file.full_path
+$grandparent_pid = principal.process.parent.parent_pid
+$parent_process = principal.process.parent.file.full_path
+$parent_pid = principal.process.parent_pid
+$child_process = principal.process.file.full_path
+$child_pid = principal.process.pid
+$target_child_process = target.process.file.full_path
+$target_pid = target.process.pid
+$user = principal.user.userid
+$command_line = principal.process.command_line
+$asset_id = principal.asset_id
+$asset_hostname = principal.hostname
+$threat_verdict = security_result.threat_verdict
+$location_city = principal.location.city
+$location_country = principal.location.country_or_region
+$timestamp = metadata.event_timestamp.seconds
+
+// Group by grandparent process, grandparent PID, parent process, parent PID, and timestamp
+match:
+    $grandparent_process, $grandparent_pid, $parent_process, $parent_pid, $timestamp
+
+// Aggregate outcomes
+outcome:
+    $child_processes = array_distinct([$child_process, $target_child_process])
+    $child_pids = array_distinct([$child_pid, $target_pid])
+    $event_count = count(metadata.id)
+    $unique_users = array_distinct([$user])
+    $command_lines = array_distinct($command_line)
+    $asset_ids = array_distinct([$asset_id])
+    $asset_hostnames = array_distinct([$asset_hostname])
+    $threat_verdicts = array_distinct([$threat_verdict])
+    $locations = array_distinct([$location_city, $location_country])
+    $formatted_timestamp = timestamp.get_timestamp($timestamp, "Etc/UTC")
+
+// Order by timestamp ascending
+order:
+    $timestamp asc
