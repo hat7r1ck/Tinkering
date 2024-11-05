@@ -1,0 +1,63 @@
+// Placeholder variables
+$entity_identifier = "${entity_identifier}"    // e.g., "user@example.com" or "computer$" or leave empty
+$event_categories = "${event_categories}"      // e.g., "TGT_REVOCATION,KRB_TICKET_GRANTING" or leave empty
+
+// Split event categories into an array
+$event_category_list = split($event_categories, ",")
+
+// Define the Kerberos event correlation filter
+$kerberos_event_filter = (
+    (
+        metadata.category in $event_category_list or
+        metadata.event_id in ["4767", "4771", "4776", "4768", "4769"] // Common Kerberos Event IDs
+    ) and
+    (
+        ($entity_identifier == "" or principal.user.userid == $entity_identifier or principal.hostname contains $entity_identifier)
+    )
+)
+
+// Apply the filter
+$kerberos_event_filter
+
+// Extract relevant fields using CrowdStrike mappings
+$user = principal.user.userid
+$process = principal.process.file.full_path
+$process_pid = principal.process.pid
+$command_line = principal.process.command_line
+$asset_id = principal.asset_id
+$asset_hostname = principal.hostname
+$location_city = principal.location.city
+$location_country = principal.location.country_or_region
+$event_id = metadata.event_id
+$timestamp = metadata.event_timestamp.seconds
+
+// Label Event IDs with Descriptive Names
+$event_label = case(
+    $event_id == "4767", "User Account Unlocked",
+    $event_id == "4771", "Kerberos Pre-authentication Failed",
+    $event_id == "4776", "Computer Account Attempted Authentication",
+    $event_id == "4768", "Kerberos Authentication Ticket (TGT) Requested",
+    $event_id == "4769", "Kerberos Service Ticket Requested",
+    "Other"
+)
+
+// Group by user, date, and event type
+$date = timestamp.get_date($timestamp, "Etc/UTC")
+match:
+    $user, $date, $event_label
+
+// Aggregate outcomes
+outcome:
+    $event_counts = count(metadata.id)
+    $unique_event_labels = array_distinct([$event_label])
+    $processes = array_distinct([$process])
+    $process_pids = array_distinct([$process_pid])
+    $command_lines = array_distinct([$command_line])
+    $asset_ids = array_distinct([$asset_id])
+    $asset_hostnames = array_distinct([$asset_hostname])
+    $locations = array_distinct([$location_city, $location_country])
+    $formatted_date = timestamp.get_date($date, "Etc/UTC")
+
+// Order by date ascending and event counts descending
+order:
+    $date asc, $event_counts desc
