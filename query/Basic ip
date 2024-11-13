@@ -1,29 +1,40 @@
+# Filter events of type NETWORK_CONNECTION from the specified IP range
 metadata.event_type = "NETWORK_CONNECTION"
 net.ip_in_range_cidr(principal.ip, "10.0.0.0/8")
 
-# Extract the event timestamp
-$event_time = metadata.event_timestamp.seconds
-
-# Get the truncated timestamp to the nearest minute
-$minute_truncated = timestamp.truncate($event_time, "MINUTE")
-
-# Extract date and time components
-$date = timestamp.get_date($minute_truncated, "%Y-%m-%d")
-$hour = timestamp.get_hour($minute_truncated)
-$minute = timestamp.get_minute($minute_truncated)
-
-# Calculate the starting minute of the 10-minute bucket
-$ten_minute = 10 * int($minute / 10)
-
-# Build the 10-minute bucket timestamp
-$ten_minute_bucket = strings.format("%s %02d:%02d:00", $date, $hour, $ten_minute)
+# Truncate the event timestamp to the nearest minute
+timestamp.get_timestamp(timestamp.truncate(metadata.event_timestamp.seconds, "MINUTE")) = $minute_bucket
 
 match:
+  # Extract date and time components from the minute bucket
+  $date = timestamp.get_date($minute_bucket, "%Y-%m-%d")
+  $hour = timestamp.get_hour($minute_bucket)
+  $minute = timestamp.get_minute($minute_bucket)
+
+  # Calculate the starting minute of the 10-minute bucket using available functions
+  # This formula maps minutes 0-9 to 0, 10-19 to 10, ..., 50-59 to 50
+  $ten_minute_bucket_minute = math.round(($minute + 5) / 10) * 10 - 10
+
+  # Handle edge cases where the result might be negative
+  # If $ten_minute_bucket_minute is less than 0, set it to 0
+  $ten_minute_bucket_minute = if $ten_minute_bucket_minute < 0 then 0 else $ten_minute_bucket_minute
+
+  # Build the 10-minute bucket timestamp
+  $ten_minute_bucket = strings.format(
+    "%s %02d:%02d:00",
+    $date,
+    $hour,
+    $ten_minute_bucket_minute
+  )
+
+  # Use $ten_minute_bucket in the match clause to group events
   $ten_minute_bucket
 
 outcome:
-  $event_count = count(metadata.event_type)
+  # Aggregate event counts and distinct IP counts per 10-minute bucket
+  $event_count = count()
   $ip_count = count_distinct(principal.ip)
 
 order:
+  # Order the results by event count in descending order
   $event_count desc
