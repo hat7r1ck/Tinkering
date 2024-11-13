@@ -1,0 +1,29 @@
+metadata.event_type = "NETWORK_CONNECTION"
+net.ip_in_range_cidr(principal.ip, "10.0.0.0/8")
+
+# Extract the event timestamp
+$event_time = metadata.event_timestamp.seconds
+
+# Get the truncated timestamp to the nearest minute
+$minute_truncated = timestamp.truncate($event_time, "MINUTE")
+
+# Extract date and time components
+$date = timestamp.get_date($minute_truncated, "%Y-%m-%d")
+$hour = timestamp.get_hour($minute_truncated)
+$minute = timestamp.get_minute($minute_truncated)
+
+# Calculate the starting minute of the 10-minute bucket
+$ten_minute = 10 * int($minute / 10)
+
+# Build the 10-minute bucket timestamp
+$ten_minute_bucket = strings.format("%s %02d:%02d:00", $date, $hour, $ten_minute)
+
+match:
+  $ten_minute_bucket
+
+outcome:
+  $event_count = count(metadata.event_type)
+  $ip_count = count_distinct(principal.ip)
+
+order:
+  $event_count desc
