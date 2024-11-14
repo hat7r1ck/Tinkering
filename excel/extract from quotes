@@ -1,0 +1,1 @@
+=TRIM(SUBSTITUTE(A1, MID(A1, FIND("""", A1), FIND("""", A1, FIND("""", A1) + 1) - FIND("""", A1) + 1), ""))
