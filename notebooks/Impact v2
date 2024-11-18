@@ -1,0 +1,83 @@
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from IPython.display import display, Markdown
+
+def load_and_preprocess_data(filename):
+    """Loads the CSV file and preprocesses the data.
+
+    Args:
+        filename: The name of the CSV file.
+
+    Returns:
+        A pandas DataFrame with preprocessed data.
+    """
+
+    df = pd.read_csv(filename)
+
+    # Convert date fields to datetime objects
+    df['Created_Date'] = pd.to_datetime(df['Created_Date'])
+    df['Closed_Date'] = pd.to_datetime(df['Closed_Date'])
+    df['Processing_Time'] = (df['Closed_Date'] - df['Created_Date']).dt.total_seconds() / 60
+
+    return df
+
+def calculate_metrics_and_projections(total_cases_df, issue_cases_df):
+    """Calculates key metrics and projections from the data.
+
+    Args:
+        total_cases_df: DataFrame containing all cases.
+        issue_cases_df: DataFrame containing cases with issues.
+
+    Returns:
+        A tuple containing calculated metrics and projections.
+    """
+
+    # Calculate total cases and cases with issues
+    total_cases = len(total_cases_df)
+    cases_with_issues = len(issue_cases_df)
+
+    # Calculate percentage of cases with issues
+    percentage_with_issues = (cases_with_issues / total_cases) * 100 if total_cases > 0 else 0
+
+    # Calculate average processing time for issue cases
+    average_time_issue_cases = issue_cases_df['Processing_Time'].mean()  # in minutes
+
+    # Define the start and end dates (maximum of earliest dates and minimum of latest dates)
+    start_date = max(total_cases_df['Created_Date'].min().date(), issue_cases_df['Created_Date'].min().date())
+    end_date = min(total_cases_df['Created_Date'].max().date(), issue_cases_df['Created_Date'].max().date())
+
+    # Create a date range including all days
+    all_dates = pd.date_range(start=start_date, end=end_date, freq='D').date
+
+    # Total Cases per Day (includes days with zero cases)
+    total_cases_per_day = total_cases_df.groupby(total_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+    issue_cases_per_day = issue_cases_df.groupby(issue_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+
+    # Calculate total cases and cases with issues
+    total_cases = total_cases_per_day.sum()
+    cases_with_issues = issue_cases_per_day.sum()
+
+    # Calculate Average Daily Counts
+    average_daily_total_cases = total_cases_per_day.mean()
+    average_daily_issue_cases = issue_cases_per_day.mean()
+
+    # Calculate percentage of cases with issues
+    percentage_with_issues = (cases_with_issues / total_cases) * 100 if total_cases > 0 else 0
+
+    # Calculate average processing time for issue cases
+    average_time_issue_cases = issue_cases_df['Processing_Time'].mean()  # in minutes
+
+    # Use Average Daily Counts for Projections
+    daily_projection = average_daily_issue_cases
+    weekly_projection = daily_projection * 7
+    monthly_projection = daily_projection * 30  # Approximate month as 30 days
+    annual_projection = daily_projection * 365
+
+    # Time Impact Calculations (convert minutes to hours)
+    daily_time_impact = (average_time_issue_cases * daily_projection) / 60
+    weekly_time_impact = daily_time_impact * 7
+    monthly_time_impact = daily_time_impact * 30
+    annual_time_impact = daily_time_impact * 365
