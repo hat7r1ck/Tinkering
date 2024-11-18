@@ -1,0 +1,296 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from IPython.display import display, Markdown
+
+# Prompt for CSV filenames
+total_cases_filename = input("Enter the filename for the total cases CSV (e.g., 'total_cases.csv'): ")
+issue_cases_filename = input("Enter the filename for the issue cases CSV (e.g., 'issue_cases.csv'): ")
+
+# Load the data
+total_cases_df = pd.read_csv(total_cases_filename)
+issue_cases_df = pd.read_csv(issue_cases_filename)
+
+# Convert date fields to datetime objects
+total_cases_df['Created_Date'] = pd.to_datetime(total_cases_df['Created_Date'])
+total_cases_df['Closed_Date'] = pd.to_datetime(total_cases_df['Closed_Date'])
+total_cases_df['Processing_Time'] = (total_cases_df['Closed_Date'] - total_cases_df['Created_Date']).dt.total_seconds() / 60
+
+issue_cases_df['Created_Date'] = pd.to_datetime(issue_cases_df['Created_Date'])
+issue_cases_df['Closed_Date'] = pd.to_datetime(issue_cases_df['Closed_Date'])
+issue_cases_df['Processing_Time'] = (issue_cases_df['Closed_Date'] - issue_cases_df['Created_Date']).dt.total_seconds() / 60
+
+# Define the start and end dates (maximum of earliest dates and minimum of latest dates)
+start_date = max(total_cases_df['Created_Date'].min().date(), issue_cases_df['Created_Date'].min().date())
+end_date = min(total_cases_df['Created_Date'].max().date(), issue_cases_df['Created_Date'].max().date())
+
+# Create a date range including all days
+all_dates = pd.date_range(start=start_date, end=end_date, freq='D').date
+
+# Total Cases per Day (includes days with zero cases)
+total_cases_per_day = total_cases_df.groupby(total_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+issue_cases_per_day = issue_cases_df.groupby(issue_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+
+# Calculate total cases and cases with issues
+total_cases = total_cases_per_day.sum()
+cases_with_issues = issue_cases_per_day.sum()
+
+# Calculate Average Daily Counts
+average_daily_total_cases = total_cases_per_day.mean()
+average_daily_issue_cases = issue_cases_per_day.mean()
+
+# Calculate percentage of cases with issues
+percentage_with_issues = (cases_with_issues / total_cases) * 100 if total_cases > 0 else 0
+
+# Calculate average processing time for issue cases
+average_time_issue_cases = issue_cases_df['Processing_Time'].mean()  # in minutes
+
+# Use Average Daily Counts for Projections
+daily_projection = average_daily_issue_cases
+weekly_projection = daily_projection * 7
+monthly_projection = daily_projection * 30  # Approximate month as 30 days
+annual_projection = daily_projection * 365
+
+# Time Impact Calculations (convert minutes to hours)
+daily_time_impact = (average_time_issue_cases * daily_projection) / 60
+weekly_time_impact = daily_time_impact * 7
+monthly_time_impact = daily_time_impact * 30
+annual_time_impact = daily_time_impact * 365
+
+# Formatting numbers to display with appropriate decimal places
+pd.options.display.float_format = '{:,.2f}'.format
+
+# Display calculated metrics with mathematical calculations
+display(Markdown("## **Calculated Metrics**\n"))
+
+# Overall Metrics with Calculations
+display(Markdown("### **Overall Metrics**"))
+
+# Total Cases and Cases with Issues
+display(Markdown(f"""
+- **Total Cases**: {total_cases}
+- **Cases with Issues**: {cases_with_issues}
+- **Percentage of Cases with Issue**:
+  \\[
+  \\text{{Percentage}} = \\left( \\frac{{\\text{{Cases with Issues}}}}{{\\text{{Total Cases}}}} \\right) \\times 100 = \\left( \\frac{{{cases_with_issues}}}{{{total_cases}}} \\right) \\times 100 = {percentage_with_issues:.2f}\\%
+  \\]
+"""))
+
+# Average Processing Time for Issue Cases
+display(Markdown(f"""
+- **Average Processing Time for Issue Cases (minutes)**:
+  \\[
+  \\text{{Average Processing Time}} = \\frac{{\\text{{Total Processing Time for Issue Cases}}}}{{\\text{{Number of Issue Cases}}}} = \\frac{{{issue_cases_df['Processing_Time'].sum():.2f}}}{{{cases_with_issues}}} = {average_time_issue_cases:.2f} \\text{{ minutes}}
+  \\]
+"""))
+
+# Projections and Time Impact with Calculations
+display(Markdown("### **Projections and Time Impact**"))
+
+# Projections with Calculations
+projections_calculations = f"""
+**Daily Projection of Cases with Issue**:
+\\[
+\\text{{Daily Projection}} = \\text{{Average Daily Issue Cases}} = {cases_with_issues} \\div {len(all_dates)} = {daily_projection:.2f} \\text{{ cases per day}}
+\\]
+
+**Weekly Projection of Cases with Issue**:
+\\[
+\\text{{Weekly Projection}} = \\text{{Daily Projection}} \\times 7 = {daily_projection:.2f} \\times 7 = {weekly_projection:.2f} \\text{{ cases per week}}
+\\]
+
+**Monthly Projection of Cases with Issue**:
+\\[
+\\text{{Monthly Projection}} = \\text{{Daily Projection}} \\times 30 = {daily_projection:.2f} \\times 30 = {monthly_projection:.2f} \\text{{ cases per month}}
+\\]
+
+**Annual Projection of Cases with Issue**:
+\\[
+\\text{{Annual Projection}} = \\text{{Daily Projection}} \\times 365 = {daily_projection:.2f} \\times 365 = {annual_projection:.2f} \\text{{ cases per year}}
+\\]
+
+**Daily Time Impact (hours)**:
+\\[
+\\text{{Daily Time Impact}} = \\left( \\frac{{\\text{{Average Processing Time}} \\times \\text{{Daily Projection}}}}{{60}} \\right) = \\left( \\frac{{{average_time_issue_cases:.2f} \\times {daily_projection:.2f}}}{{60}} \\right) = {daily_time_impact:.2f} \\text{{ hours per day}}
+\\]
+
+**Weekly Time Impact (hours)**:
+\\[
+\\text{{Weekly Time Impact}} = \\text{{Daily Time Impact}} \\times 7 = {daily_time_impact:.2f} \\times 7 = {weekly_time_impact:.2f} \\text{{ hours per week}}
+\\]
+
+**Monthly Time Impact (hours)**:
+\\[
+\\text{{Monthly Time Impact}} = \\text{{Daily Time Impact}} \\times 30 = {daily_time_impact:.2f} \\times 30 = {monthly_time_impact:.2f} \\text{{ hours per month}}
+\\]
+
+**Annual Time Impact (hours)**:
+\\[
+\\text{{Annual Time Impact}} = \\text{{Daily Time Impact}} \\times 365 = {daily_time_impact:.2f} \\times 365 = {annual_time_impact:.2f} \\text{{ hours per year}}
+\\]
+"""
+
+display(Markdown(projections_calculations))
+
+# Prepare data for projections DataFrame
+projections_metrics = pd.DataFrame({
+    'Time Frame': ['Daily', 'Weekly', 'Monthly', 'Annual'],
+    'Projected Cases with Issue': [
+        daily_projection,
+        weekly_projection,
+        monthly_projection,
+        annual_projection
+    ],
+    'Projected Time Impact (hours)': [
+        daily_time_impact,
+        weekly_time_impact,
+        monthly_time_impact,
+        annual_time_impact
+    ]
+})
+
+# Styling DataFrames
+def style_projections_metrics(df):
+    return df.style \
+        .hide_index() \
+        .set_properties(**{'text-align': 'center', 'font-size': '12pt'}) \
+        .set_table_styles([dict(selector='th', props=[('text-align', 'center'), ('font-size', '12pt')])]) \
+        .format({'Projected Cases with Issue': '{:,.2f}', 'Projected Time Impact (hours)': '{:,.2f}'}) \
+        .bar(subset=['Projected Cases with Issue'], color='#5fba7d') \
+        .bar(subset=['Projected Time Impact (hours)'], color='#d65f5f')
+
+# Display projections metrics
+display(Markdown("### **Projections Metrics**"))
+display(style_projections_metrics(projections_metrics))
+
+# Visualizations
+
+# Adjust number formatting for small values
+def adjust_small_values(x):
+    if x < 0.01:
+        return "<0.01"
+    else:
+        return f"{x:.2f}"
+
+# Pie Chart: Percentage of Cases with Issue
+fig1 = px.pie(
+    names=['Cases with Issue', 'Cases without Issue'],
+    values=[cases_with_issues, total_cases - cases_with_issues],
+    title='Percentage of Cases with Issue',
+    color_discrete_sequence=px.colors.sequential.RdBu
+)
+
+# Bar Chart for Projected Cases with Issue
+fig2 = px.bar(
+    data_frame=projections_metrics,
+    x='Time Frame',
+    y='Projected Cases with Issue',
+    title='Projected Cases with Issue over Time Frames',
+    text='Projected Cases with Issue',
+    color='Time Frame',
+    color_discrete_sequence=px.colors.sequential.Blues
+)
+fig2.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+fig2.update_layout(yaxis_title='Number of Cases', xaxis_title='Time Frame', showlegend=False)
+
+# Bar Chart for Projected Time Impact
+fig3 = px.bar(
+    data_frame=projections_metrics,
+    x='Time Frame',
+    y='Projected Time Impact (hours)',
+    title='Projected Time Impact Due to Issue Cases',
+    text='Projected Time Impact (hours)',
+    color='Time Frame',
+    color_discrete_sequence=px.colors.sequential.Greens
+)
+fig3.update_traces(texttemplate='%{text:.2f} hrs', textposition='outside')
+fig3.update_layout(
+    yaxis_title='Time Impact (hours)',
+    xaxis_title='Time Frame',
+    showlegend=False,
+    yaxis=dict(tickformat=".2f")
+)
+
+# Line Chart for Trend of Issue Cases Over Time
+issue_cases_over_time = issue_cases_per_day.reset_index()
+issue_cases_over_time.columns = ['Date', 'Cases_with_Issue']
+
+# Adjusting the trend line chart to look good with sparse data
+if issue_cases_over_time['Cases_with_Issue'].sum() == 0:
+    display(Markdown("**Note:** No issue cases found in the given date range to plot the trend line."))
+else:
+    fig4 = px.line(
+        data_frame=issue_cases_over_time,
+        x='Date',
+        y='Cases_with_Issue',
+        title='Trend of Issue Cases Over Time',
+        markers=True
+    )
+    fig4.update_layout(
+        yaxis_title='Number of Issue Cases',
+        xaxis_title='Date',
+        xaxis_tickangle=45,
+        xaxis=dict(tickmode='auto'),
+        height=400
+    )
+
+    # Show the line chart
+    fig4.show()
+
+# Consolidated Dashboard
+fig_dashboard = make_subplots(
+    rows=2, cols=2,
+    subplot_titles=(
+        'Percentage of Cases with Issue',
+        'Projected Cases with Issue',
+        'Projected Time Impact',
+        'Trend of Issue Cases Over Time'
+    )
+)
+
+# Add traces to dashboard
+# Pie Chart
+fig_dashboard.add_trace(fig1['data'][0], row=1, col=1)
+
+# Bar Chart for Projected Cases with Issue
+fig_dashboard.add_trace(fig2['data'][0], row=1, col=2)
+
+# Bar Chart for Projected Time Impact
+fig_dashboard.add_trace(fig3['data'][0], row=2, col=1)
+
+# Line Chart for Trend of Issue Cases Over Time
+if issue_cases_over_time['Cases_with_Issue'].sum() == 0:
+    # If no data to plot, add an annotation
+    fig_dashboard.add_annotation(
+        x=0.5, y=0.5,
+        xref='x2 domain', yref='y2 domain',
+        text='No issue cases to display',
+        showarrow=False,
+        row=2, col=2
+    )
+else:
+    fig_dashboard.add_trace(fig4['data'][0], row=2, col=2)
+
+# Update layout for dashboard
+fig_dashboard.update_layout(
+    height=900,
+    width=1200,
+    title_text='Impact and Trend Analysis Dashboard',
+    showlegend=False
+)
+
+# Update axes titles for dashboard
+fig_dashboard.update_xaxes(title_text='Time Frame', row=1, col=2)
+fig_dashboard.update_yaxes(title_text='Number of Cases', row=1, col=2)
+
+fig_dashboard.update_xaxes(title_text='Time Frame', row=2, col=1)
+fig_dashboard.update_yaxes(title_text='Time Impact (hours)', row=2, col=1)
+
+fig_dashboard.update_xaxes(title_text='Date', row=2, col=2, tickangle=45)
+fig_dashboard.update_yaxes(title_text='Number of Issue Cases', row=2, col=2)
+
+# Display the dashboard
+fig_dashboard.show()
