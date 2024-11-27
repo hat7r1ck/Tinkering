@@ -1,0 +1,482 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from plotly.subplots import make_subplots
+from IPython.display import display, Markdown, Math
+import os
+
+# Import dateutil for flexible date parsing
+# You can comment out or remove the following import and associated code if 'dateutil' is not available
+import dateutil.parser
+
+# Main code execution
+def main():
+    # Load Total Cases Data
+    total_cases_filename = input("Enter the filename for the total cases CSV (e.g., 'total_cases.csv'): ").strip()
+    
+    if not os.path.isfile(total_cases_filename):
+        print(f"Error: The file '{total_cases_filename}' does not exist.")
+        return
+    
+    total_cases_df = load_and_preprocess(total_cases_filename)
+    
+    # Check if total_cases_df is empty
+    if total_cases_df.empty:
+        print("Total cases data is empty.")
+        return
+    
+    # Calculate total processing time and average processing time from total cases
+    total_processing_time_total_cases = total_cases_df['Processing_Time'].sum()
+    average_processing_time_total_cases = total_cases_df['Processing_Time'].mean()
+    total_cases_all = len(total_cases_df)
+    
+    # Load Issue Cases Data or Prompt for Number of Issue Cases
+    issue_cases_filename = input("Enter the filename for the issue cases CSV (or press Enter if there are none): ").strip()
+    
+    if issue_cases_filename == '':
+        # No issue cases file provided; prompt for number of issue cases
+        try:
+            cases_with_issues = int(input("How many issue cases were there? ").strip())
+            if cases_with_issues > 0:
+                average_time_issue_cases = average_processing_time_total_cases
+                total_processing_time_issue_cases = average_time_issue_cases * cases_with_issues
+            else:
+                average_time_issue_cases = 0
+                total_processing_time_issue_cases = 0
+            # Adjust total_cases (non-issue cases) by subtracting cases_with_issues
+            total_cases = total_cases_all - cases_with_issues
+        except ValueError:
+            print("Invalid input. Please enter numeric values.")
+            return
+        
+        # Since we don't have issue cases data, we'll proceed accordingly
+        issue_cases_df = pd.DataFrame(columns=total_cases_df.columns)
+        
+        # Set flag to indicate missing issue cases data
+        issue_data_available = False
+    elif os.path.isfile(issue_cases_filename):
+        issue_cases_df = load_and_preprocess(issue_cases_filename)
+        cases_with_issues = len(issue_cases_df)
+        average_time_issue_cases = issue_cases_df['Processing_Time'].mean()
+        total_processing_time_issue_cases = average_time_issue_cases * cases_with_issues
+        issue_data_available = True
+        
+        # Exclude issue cases from total_cases_df
+        if not issue_cases_df.empty:
+            # Get the list of Case_IDs in issue_cases_df
+            issue_case_ids = issue_cases_df['Case_ID'].unique()
+            
+            # Filter out cases with these IDs from total_cases_df
+            total_cases_df = total_cases_df[~total_cases_df['Case_ID'].isin(issue_case_ids)]
+        
+        total_cases = len(total_cases_df)
+        total_cases_all = total_cases + cases_with_issues
+    else:
+        print(f"Error: The file '{issue_cases_filename}' does not exist.")
+        return
+    
+    # Prompt for the number of days for analysis
+    try:
+        num_days_input = int(input("Enter the number of days for analysis (e.g., 30): ").strip())
+        if num_days_input <= 0:
+            print("Number of days must be a positive integer.")
+            return
+    except ValueError:
+        print("Invalid input. Please enter a positive integer for the number of days.")
+        return
+    
+    # Determine the start and end dates based on earliest "Created_Date"
+    earliest_date = total_cases_df['Created_Date'].min().date()
+    start_date_filter = earliest_date
+    end_date_filter = start_date_filter + pd.Timedelta(days=num_days_input - 1)
+    
+    # Filter total cases
+    total_cases_df = total_cases_df[
+        (total_cases_df['Created_Date'].dt.date >= start_date_filter) &
+        (total_cases_df['Created_Date'].dt.date <= end_date_filter)
+    ]
+    
+    # Filter issue cases (if available)
+    if issue_data_available and not issue_cases_df.empty:
+        issue_cases_df = issue_cases_df[
+            (issue_cases_df['Created_Date'].dt.date >= start_date_filter) &
+            (issue_cases_df['Created_Date'].dt.date <= end_date_filter)
+        ]
+    
+    # Recalculate the start and end dates after filtering
+    dates = []
+    if not total_cases_df.empty:
+        dates.extend([total_cases_df['Created_Date'].min().date(), total_cases_df['Created_Date'].max().date()])
+    if issue_data_available and not issue_cases_df.empty:
+        dates.extend([issue_cases_df['Created_Date'].min().date(), issue_cases_df['Created_Date'].max().date()])
+    
+    if dates:
+        overall_start_date = min(dates)
+        overall_end_date = max(dates)
+        all_dates = pd.date_range(start=overall_start_date, end=overall_end_date, freq='D').date
+        num_days = len(all_dates)
+    else:
+        print("No date information available after filtering.")
+        return
+    
+    # Recalculate total_cases and total_cases_all after filtering
+    total_cases = len(total_cases_df)
+    total_cases_all = total_cases + cases_with_issues
+    
+    # Recalculate total processing times
+    total_processing_time_total_cases = total_cases_df['Processing_Time'].sum() + total_processing_time_issue_cases
+    average_processing_time_all_cases = total_processing_time_total_cases / total_cases_all if total_cases_all > 0 else 0
+    
+    # Total Cases per Day (non-issue cases)
+    if not total_cases_df.empty:
+        total_cases_per_day = total_cases_df.groupby(total_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+        # Adjust total_cases_per_day by distributing the subtracted issue cases proportionally
+        if not issue_data_available:
+            # Distribute issue cases proportionally over the date range
+            issue_cases_per_day_estimated = (cases_with_issues / num_days)
+            total_cases_per_day = total_cases_per_day - issue_cases_per_day_estimated
+            total_cases_per_day[total_cases_per_day < 0] = 0  # Ensure no negative values
+    else:
+        total_cases_per_day = pd.Series([0]*num_days, index=all_dates)
+    
+    # Issue Cases per Day
+    if issue_data_available and not issue_cases_df.empty:
+        issue_cases_per_day = issue_cases_df.groupby(issue_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+    else:
+        # Distribute issue cases evenly over the date range
+        if cases_with_issues > 0 and num_days > 0:
+            average_daily_issue_cases = cases_with_issues / num_days
+            issue_cases_per_day = pd.Series([average_daily_issue_cases]*num_days, index=all_dates)
+        else:
+            issue_cases_per_day = pd.Series([0]*num_days, index=all_dates)
+    
+    # Calculate Average Daily Counts
+    average_daily_total_cases = total_cases_per_day.mean()
+    average_daily_issue_cases = issue_cases_per_day.mean()
+    
+    # Calculate percentage of cases with issues
+    percentage_with_issues = (cases_with_issues / total_cases_all) * 100 if total_cases_all > 0 else 0
+    
+    # Use Average Daily Counts for Projections
+    daily_projection = average_daily_issue_cases
+    weekly_projection = daily_projection * 7
+    monthly_projection = daily_projection * 30
+    annual_projection = daily_projection * 365
+    
+    # Time Impact Calculations (convert minutes to hours)
+    if average_time_issue_cases > 0:
+        daily_time_impact = (average_time_issue_cases * daily_projection) / 60
+        weekly_time_impact = daily_time_impact * 7
+        monthly_time_impact = daily_time_impact * 30
+        annual_time_impact = daily_time_impact * 365
+    else:
+        daily_time_impact = weekly_time_impact = monthly_time_impact = annual_time_impact = 0
+    
+    # Formatting numbers to display with appropriate decimal places
+    pd.options.display.float_format = '{:,.2f}'.format
+    
+    # Display calculated metrics with mathematical calculations
+    display(Markdown("## **Calculated Metrics**\n"))
+    
+    # Overall Metrics with Calculations
+    display(Markdown("### **Overall Metrics**"))
+    
+    # Total Cases and Cases with Issues
+    display(Markdown(f"- **Total Cases (Non-Issue Cases)**: {int(total_cases)}"))
+    display(Markdown(f"- **Cases with Issues**: {int(cases_with_issues)}"))
+    display(Markdown(f"- **Total Cases (Including Issue Cases)**: {int(total_cases_all)}"))
+    
+    # Percentage of Cases with Issue
+    display(Markdown("**Percentage of Cases with Issue:**"))
+    display(Math(r"""
+    \text{Percentage} = \left( \frac{\text{Cases with Issues}}{\text{Total Cases Including Issue Cases}} \right) \times 100 = \left( \frac{%d}{%d} \right) \times 100 = %.2f\%%
+    """ % (cases_with_issues, total_cases_all, percentage_with_issues)))
+    
+    # Average Processing Time for Issue Cases
+    if cases_with_issues > 0:
+        display(Markdown("**Average Processing Time for Issue Cases (minutes):**"))
+        display(Math(r"""
+        \text{Average Processing Time} = \text{Average Processing Time from Total Cases} = %.2f \text{ minutes}
+        """ % (average_time_issue_cases)))
+    else:
+        display(Markdown("- **Average Processing Time for Issue Cases (minutes)**: N/A (No issue cases)"))
+    
+    # Average Processing Time for All Cases
+    if total_cases_all > 0:
+        display(Markdown("**Average Processing Time for All Cases (minutes):**"))
+        display(Math(r"""
+        \text{Average Processing Time} = \frac{\text{Total Processing Time for All Cases}}{\text{Total Cases}} = \frac{%.2f}{%d} = %.2f \text{ minutes}
+        """ % (total_processing_time_total_cases, total_cases_all, average_processing_time_all_cases)))
+    else:
+        display(Markdown("- **Average Processing Time for All Cases (minutes)**: N/A (No cases available)"))
+    
+    # Projections and Time Impact with Calculations
+    display(Markdown("### **Projections and Time Impact**"))
+    
+    if cases_with_issues > 0:
+        # Number of days in the date range
+        num_days = len(all_dates)
+        
+        # Daily Projection
+        display(Markdown("**Daily Projection of Cases with Issue:**"))
+        display(Math(r"""
+        \text{Daily Projection} = \frac{\text{Total Issue Cases}}{\text{Number of Days}} = \frac{%d}{%d} = %.2f \text{ cases per day}
+        """ % (cases_with_issues, num_days, daily_projection)))
+        
+        # Weekly Projection
+        display(Markdown("**Weekly Projection of Cases with Issue:**"))
+        display(Math(r"""
+        \text{Weekly Projection} = \text{Daily Projection} \times 7 = %.2f \times 7 = %.2f \text{ cases per week}
+        """ % (daily_projection, weekly_projection)))
+        
+        # Monthly Projection
+        display(Markdown("**Monthly Projection of Cases with Issue:**"))
+        display(Math(r"""
+        \text{Monthly Projection} = \text{Daily Projection} \times 30 = %.2f \times 30 = %.2f \text{ cases per month}
+        """ % (daily_projection, monthly_projection)))
+        
+        # Annual Projection
+        display(Markdown("**Annual Projection of Cases with Issue:**"))
+        display(Math(r"""
+        \text{Annual Projection} = \text{Daily Projection} \times 365 = %.2f \times 365 = %.2f \text{ cases per year}
+        """ % (daily_projection, annual_projection)))
+        
+        # Time Impact Calculations
+        display(Markdown("**Daily Time Impact (hours):**"))
+        display(Math(r"""
+        \text{Daily Time Impact} = \left( \frac{\text{Average Processing Time} \times \text{Daily Projection}}{60} \right) = \left( \frac{%.2f \times %.2f}{60} \right) = %.2f \text{ hours per day}
+        """ % (average_time_issue_cases, daily_projection, daily_time_impact)))
+        
+        display(Markdown("**Weekly Time Impact (hours):**"))
+        display(Math(r"""
+        \text{Weekly Time Impact} = \text{Daily Time Impact} \times 7 = %.2f \times 7 = %.2f \text{ hours per week}
+        """ % (daily_time_impact, weekly_time_impact)))
+        
+        display(Markdown("**Monthly Time Impact (hours):**"))
+        display(Math(r"""
+        \text{Monthly Time Impact} = \text{Daily Time Impact} \times 30 = %.2f \times 30 = %.2f \text{ hours per month}
+        """ % (daily_time_impact, monthly_time_impact)))
+        
+        display(Markdown("**Annual Time Impact (hours):**"))
+        display(Math(r"""
+        \text{Annual Time Impact} = \text{Daily Time Impact} \times 365 = %.2f \times 365 = %.2f \text{ hours per year}
+        """ % (daily_time_impact, annual_time_impact)))
+    else:
+        display(Markdown("**No issue cases present; projections and time impact are not applicable.**"))
+    
+    # Prepare data for projections DataFrame
+    if cases_with_issues > 0:
+        projections_metrics = pd.DataFrame({
+            'Time Frame': ['Daily', 'Weekly', 'Monthly', 'Annual'],
+            'Projected Cases with Issue': [
+                daily_projection,
+                weekly_projection,
+                monthly_projection,
+                annual_projection
+            ],
+            'Projected Time Impact (hours)': [
+                daily_time_impact,
+                weekly_time_impact,
+                monthly_time_impact,
+                annual_time_impact
+            ]
+        })
+    else:
+        projections_metrics = pd.DataFrame({
+            'Time Frame': ['Daily', 'Weekly', 'Monthly', 'Annual'],
+            'Projected Cases with Issue': [0, 0, 0, 0],
+            'Projected Time Impact (hours)': [0, 0, 0, 0]
+        })
+    
+    # Styling DataFrames
+    def style_projections_metrics(df):
+        return df.style \
+            .hide(axis='index') \
+            .set_properties(**{'text-align': 'center', 'font-size': '12pt'}) \
+            .set_table_styles([dict(selector='th', props=[('text-align', 'center'), ('font-size', '12pt')])]) \
+            .format({'Projected Cases with Issue': '{:,.2f}', 'Projected Time Impact (hours)': '{:,.2f}'}) \
+            .bar(subset=['Projected Cases with Issue'], color='#5fba7d') \
+            .bar(subset=['Projected Time Impact (hours)'], color='#d65f5f')
+    
+    # Display projections metrics
+    display(Markdown("### **Projections Metrics**"))
+    display(style_projections_metrics(projections_metrics))
+    
+    # Visualizations
+    
+    # Pie Chart: Percentage of Cases with Issue
+    fig1 = px.pie(
+        names=['Cases with Issue', 'Cases without Issue'],
+        values=[cases_with_issues, total_cases],
+        title='Percentage of Cases with Issue',
+        color_discrete_sequence=px.colors.sequential.RdBu
+    )
+    
+    # Bar Chart for Projected Cases with Issue
+    fig2 = px.bar(
+        data_frame=projections_metrics,
+        x='Time Frame',
+        y='Projected Cases with Issue',
+        title='Projected Cases with Issue',
+        text='Projected Cases with Issue',
+        color_discrete_sequence=px.colors.sequential.Blues
+    )
+    fig2.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+    fig2.update_layout(yaxis_title='Number of Cases', xaxis_title='', showlegend=False)
+    
+    # Bar Chart for Projected Time Impact
+    fig3 = px.bar(
+        data_frame=projections_metrics,
+        x='Time Frame',
+        y='Projected Time Impact (hours)',
+        title='Projected Time Impact Due to Issue Cases',
+        text='Projected Time Impact (hours)',
+        color_discrete_sequence=px.colors.sequential.Greens
+    )
+    fig3.update_traces(texttemplate='%{text:.2f} hrs', textposition='outside')
+    fig3.update_layout(
+        yaxis_title='Time Impact (hours)',
+        xaxis_title='',
+        showlegend=False,
+        yaxis=dict(tickformat=".2f")
+    )
+    
+    # Line Chart for Trend of Issue Cases Over Time
+    if issue_data_available and not issue_cases_df.empty:
+        issue_cases_over_time = issue_cases_per_day.reset_index()
+        issue_cases_over_time.columns = ['Date', 'Cases_with_Issue']
+        
+        fig4 = px.line(
+            data_frame=issue_cases_over_time,
+            x='Date',
+            y='Cases_with_Issue',
+            title='Trend of Issue Cases Over Time',
+            markers=True
+        )
+        fig4.update_layout(
+            yaxis_title='Number of Issue Cases',
+            xaxis_title='Date',
+            xaxis_tickangle=45,
+            xaxis=dict(tickmode='auto'),
+            height=400
+        )
+    else:
+        fig4 = None
+    
+    # Consolidated Dashboard
+    fig_dashboard = make_subplots(
+        rows=2, cols=2,
+        specs=[[{'type': 'domain'}, {'type': 'xy'}],
+               [{'type': 'xy'}, {'type': 'xy'}]],
+        subplot_titles=(
+            'Percentage of Cases with Issue',
+            'Projected Cases with Issue',
+            'Projected Time Impact',
+            'Trend of Issue Cases Over Time'
+        )
+    )
+    
+    # Add traces to dashboard
+    # Pie Chart
+    fig_dashboard.add_trace(fig1['data'][0], row=1, col=1)
+    
+    # Bar Chart for Projected Cases with Issue
+    for trace in fig2['data']:
+        fig_dashboard.add_trace(trace, row=1, col=2)
+    
+    # Bar Chart for Projected Time Impact
+    for trace in fig3['data']:
+        fig_dashboard.add_trace(trace, row=2, col=1)
+    
+    # Line Chart for Trend of Issue Cases Over Time
+    if fig4 is not None:
+        fig_dashboard.add_trace(fig4['data'][0], row=2, col=2)
+    else:
+        # If no data to plot, add an annotation
+        fig_dashboard.add_annotation(
+            x=0.5, y=0.5,
+            xref='x domain', yref='y domain',
+            text='No issue cases data available to display trend',
+            showarrow=False,
+            row=2, col=2
+        )
+    
+    # Update layout for dashboard
+    fig_dashboard.update_layout(
+        height=900,
+        width=1200,
+        title_text='Impact and Trend Analysis Dashboard',
+        showlegend=False
+    )
+    
+    # Update axes titles for dashboard
+    fig_dashboard.update_xaxes(title_text='', row=1, col=2)
+    fig_dashboard.update_yaxes(title_text='Number of Cases', row=1, col=2)
+    
+    fig_dashboard.update_xaxes(title_text='', row=2, col=1)
+    fig_dashboard.update_yaxes(title_text='Time Impact (hours)', row=2, col=1)
+    
+    fig_dashboard.update_xaxes(title_text='Date', row=2, col=2, tickangle=45)
+    fig_dashboard.update_yaxes(title_text='Number of Issue Cases', row=2, col=2)
+    
+    # Display the dashboard
+    fig_dashboard.show()
+    
+    # Exporting Metrics and Visualizations (Optional)
+    # Comment or remove the following sections if the necessary packages are not available
+    
+    # Export metrics to CSV
+    # metrics_data = {
+    #     'Metric': [...],  # Define your metrics
+    #     'Value': [...]
+    # }
+    # metrics_df = pd.DataFrame(metrics_data)
+    # metrics_df.to_csv('calculated_metrics.csv', index=False)
+    # print("Metrics have been exported to 'calculated_metrics.csv'.")
+    
+    # Export projections metrics to CSV
+    # projections_metrics.to_csv('projections_metrics.csv', index=False)
+    # print("Projections metrics have been exported to 'projections_metrics.csv'.")
+    
+    # Save dashboard as image
+    # Requires 'kaleido' package
+    # fig_dashboard.write_image("dashboard.png", width=1200, height=900)
+    # print("Dashboard has been saved as 'dashboard.png'.")
+
+# Function to load and preprocess data from a CSV file
+def load_and_preprocess(filename):
+    # Read the data
+    df = pd.read_csv(filename)
+    
+    # Remove leading/trailing spaces from column names
+    df.columns = df.columns.str.strip()
+    
+    # Rename columns to match expected names
+    df.rename(columns={
+        'id': 'Case_ID',
+        'Occurred': 'Created_Date',  # Adjust based on your column names
+        'Closed': 'Closed_Date'
+    }, inplace=True)
+    
+    # Parse dates regardless of format
+    # Comment or remove the following if 'dateutil' is not available
+    df['Created_Date'] = df['Created_Date'].apply(lambda x: dateutil.parser.parse(x) if pd.notnull(x) else x)
+    df['Closed_Date'] = df['Closed_Date'].apply(lambda x: dateutil.parser.parse(x) if pd.notnull(x) else x)
+    
+    # If 'dateutil' is not available, use the following code instead
+    # Adjust 'date_format' to match your date format
+    # date_format = '%Y-%m-%d %H:%M:%S'  # Example format
+    # df['Created_Date'] = pd.to_datetime(df['Created_Date'], format=date_format)
+    # df['Closed_Date'] = pd.to_datetime(df['Closed_Date'], format=date_format)
+    
+    # Calculate Processing Time in minutes
+    df['Processing_Time'] = (df['Closed_Date'] - df['Created_Date']).dt.total_seconds() / 60
+    
+    # Filter out cases with negative or zero processing time
+    df = df[df['Processing_Time'] > 0]
+    
+    return df
+
+# Run the main function
+main()
