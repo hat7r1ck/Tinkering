@@ -5,7 +5,10 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 from IPython.display import display, Markdown, Math
 import os
-# No need to import 'arrow' or 'dateutil'
+import plotly.io as pio  # Required for saving figures with kaleido
+
+# Ensure that kaleido is available for saving images
+# If not installed, you can install it using: pip install kaleido
 
 # Main code execution
 def main():
@@ -111,6 +114,7 @@ def main():
     if dates:
         overall_start_date = min(dates)
         overall_end_date = max(dates)
+        # Adjust all_dates to include only dates with data
         all_dates = pd.date_range(start=overall_start_date, end=overall_end_date, freq='D').date
         num_days = len(all_dates)
     else:
@@ -127,26 +131,26 @@ def main():
     
     # Total Cases per Day (non-issue cases)
     if not total_cases_df.empty:
-        total_cases_per_day = total_cases_df.groupby(total_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+        total_cases_per_day = total_cases_df.groupby(total_cases_df['Created_Date'].dt.date).size()
         # Adjust total_cases_per_day by distributing the subtracted issue cases proportionally
-        if not issue_data_available:
+        if not issue_data_available and cases_with_issues > 0:
             # Distribute issue cases proportionally over the date range
             issue_cases_per_day_estimated = (cases_with_issues / num_days)
             total_cases_per_day = total_cases_per_day - issue_cases_per_day_estimated
             total_cases_per_day[total_cases_per_day < 0] = 0  # Ensure no negative values
     else:
-        total_cases_per_day = pd.Series([0]*num_days, index=all_dates)
+        total_cases_per_day = pd.Series(dtype=int)
     
     # Issue Cases per Day
     if issue_data_available and not issue_cases_df.empty:
-        issue_cases_per_day = issue_cases_df.groupby(issue_cases_df['Created_Date'].dt.date).size().reindex(all_dates, fill_value=0)
+        issue_cases_per_day = issue_cases_df.groupby(issue_cases_df['Created_Date'].dt.date).size()
     else:
-        # Distribute issue cases evenly over the date range
+        # Distribute issue cases evenly over the date range with actual dates
         if cases_with_issues > 0 and num_days > 0:
             average_daily_issue_cases = cases_with_issues / num_days
-            issue_cases_per_day = pd.Series([average_daily_issue_cases]*num_days, index=all_dates)
+            issue_cases_per_day = pd.Series(average_daily_issue_cases, index=all_dates)
         else:
-            issue_cases_per_day = pd.Series([0]*num_days, index=all_dates)
+            issue_cases_per_day = pd.Series(dtype=int)
     
     # Calculate Average Daily Counts
     average_daily_total_cases = total_cases_per_day.mean()
@@ -302,7 +306,181 @@ def main():
     
     # Visualizations
     
-    # [Visualization code remains the same]
+    # Pie Chart: Percentage of Cases with Issue
+    fig1 = px.pie(
+        names=['Cases with Issue', 'Cases without Issue'],
+        values=[cases_with_issues, total_cases],
+        title='Percentage of Cases with Issue',
+        color_discrete_sequence=px.colors.sequential.RdBu
+    )
+    
+    # Bar Chart for Projected Cases with Issue
+    fig2 = px.bar(
+        data_frame=projections_metrics,
+        x='Time Frame',
+        y='Projected Cases with Issue',
+        title='Projected Cases with Issue',
+        text='Projected Cases with Issue',
+        color_discrete_sequence=px.colors.sequential.Blues
+    )
+    fig2.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+    fig2.update_layout(yaxis_title='Number of Cases', xaxis_title='', showlegend=False)
+    
+    # Bar Chart for Projected Time Impact
+    fig3 = px.bar(
+        data_frame=projections_metrics,
+        x='Time Frame',
+        y='Projected Time Impact (hours)',
+        title='Projected Time Impact Due to Issue Cases',
+        text='Projected Time Impact (hours)',
+        color_discrete_sequence=px.colors.sequential.Greens
+    )
+    fig3.update_traces(texttemplate='%{text:.2f} hrs', textposition='outside')
+    fig3.update_layout(
+        yaxis_title='Time Impact (hours)',
+        xaxis_title='',
+        showlegend=False,
+        yaxis=dict(tickformat=".2f")
+    )
+    
+    # Line Chart for Trend of Issue Cases Over Time
+    if cases_with_issues > 0:
+        if issue_data_available and not issue_cases_df.empty:
+            issue_cases_over_time = issue_cases_per_day.reset_index()
+            issue_cases_over_time.columns = ['Date', 'Cases_with_Issue']
+        else:
+            # If issue cases data is not available, use the estimated issue cases per day
+            issue_cases_over_time = pd.DataFrame({
+                'Date': all_dates,
+                'Cases_with_Issue': [cases_with_issues / num_days] * num_days
+            })
+        
+        fig4 = px.line(
+            data_frame=issue_cases_over_time,
+            x='Date',
+            y='Cases_with_Issue',
+            title='Trend of Issue Cases Over Time',
+            markers=True
+        )
+        fig4.update_layout(
+            yaxis_title='Number of Issue Cases',
+            xaxis_title='Date',
+            xaxis_tickangle=45,
+            xaxis=dict(tickmode='auto'),
+            height=400
+        )
+    else:
+        fig4 = None
+    
+    # Consolidated Dashboard
+    fig_dashboard = make_subplots(
+        rows=2, cols=2,
+        specs=[[{'type': 'domain'}, {'type': 'xy'}],
+               [{'type': 'xy'}, {'type': 'xy'}]],
+        subplot_titles=(
+            'Percentage of Cases with Issue',
+            'Projected Cases with Issue',
+            'Projected Time Impact',
+            'Trend of Issue Cases Over Time'
+        )
+    )
+    
+    # Add traces to dashboard
+    # Pie Chart
+    fig_dashboard.add_trace(fig1['data'][0], row=1, col=1)
+    
+    # Bar Chart for Projected Cases with Issue
+    for trace in fig2['data']:
+        fig_dashboard.add_trace(trace, row=1, col=2)
+    
+    # Bar Chart for Projected Time Impact
+    for trace in fig3['data']:
+        fig_dashboard.add_trace(trace, row=2, col=1)
+    
+    # Line Chart for Trend of Issue Cases Over Time
+    if fig4 is not None:
+        for trace in fig4['data']:
+            fig_dashboard.add_trace(trace, row=2, col=2)
+    else:
+        # If no data to plot, add an annotation
+        fig_dashboard.add_annotation(
+            x=0.5, y=0.5,
+            xref='x domain', yref='y domain',
+            text='No issue cases data available to display trend',
+            showarrow=False,
+            row=2, col=2
+        )
+    
+    # Update layout for dashboard
+    fig_dashboard.update_layout(
+        height=900,
+        width=1200,
+        title_text='Impact and Trend Analysis Dashboard',
+        showlegend=False
+    )
+    
+    # Update axes titles for dashboard
+    fig_dashboard.update_xaxes(title_text='', row=1, col=2)
+    fig_dashboard.update_yaxes(title_text='Number of Cases', row=1, col=2)
+    
+    fig_dashboard.update_xaxes(title_text='', row=2, col=1)
+    fig_dashboard.update_yaxes(title_text='Time Impact (hours)', row=2, col=1)
+    
+    fig_dashboard.update_xaxes(title_text='Date', row=2, col=2, tickangle=45)
+    fig_dashboard.update_yaxes(title_text='Number of Issue Cases', row=2, col=2)
+    
+    # Display the dashboard
+    fig_dashboard.show()
+    
+    # Exporting Metrics and Visualizations
+    # Ensure 'kaleido' is installed for image export
+    
+    # Export metrics to CSV
+    metrics_data = {
+        'Metric': [
+            'Total Cases (Non-Issue Cases)',
+            'Cases with Issues',
+            'Total Cases (Including Issue Cases)',
+            'Percentage of Cases with Issue (%)',
+            'Average Processing Time for Issue Cases (minutes)',
+            'Average Processing Time for All Cases (minutes)',
+            'Daily Projected Cases with Issue',
+            'Weekly Projected Cases with Issue',
+            'Monthly Projected Cases with Issue',
+            'Annual Projected Cases with Issue',
+            'Daily Time Impact (hours)',
+            'Weekly Time Impact (hours)',
+            'Monthly Time Impact (hours)',
+            'Annual Time Impact (hours)'
+        ],
+        'Value': [
+            int(total_cases),
+            int(cases_with_issues),
+            int(total_cases_all),
+            percentage_with_issues,
+            average_time_issue_cases,
+            average_processing_time_all_cases,
+            daily_projection,
+            weekly_projection,
+            monthly_projection,
+            annual_projection,
+            daily_time_impact,
+            weekly_time_impact,
+            monthly_time_impact,
+            annual_time_impact
+        ]
+    }
+    metrics_df = pd.DataFrame(metrics_data)
+    metrics_df.to_csv('calculated_metrics.csv', index=False)
+    print("Metrics have been exported to 'calculated_metrics.csv'.")
+    
+    # Export projections metrics to CSV
+    projections_metrics.to_csv('projections_metrics.csv', index=False)
+    print("Projections metrics have been exported to 'projections_metrics.csv'.")
+    
+    # Save dashboard as image
+    fig_dashboard.write_image("dashboard.png", width=1200, height=900)
+    print("Dashboard has been saved as 'dashboard.png'.")
     
     # Return data for additional visualizations
     return total_cases_df, issue_cases_df, total_cases_per_day, issue_cases_per_day, all_dates, num_days, issue_data_available
@@ -346,6 +524,9 @@ def load_and_preprocess(filename):
 # Run the main function and capture returned data
 total_cases_df, issue_cases_df, total_cases_per_day, issue_cases_per_day, all_dates, num_days, issue_data_available = main()
 
+
+
+
 # Import necessary libraries (if not already imported)
 import pandas as pd
 import plotly.express as px
@@ -359,24 +540,21 @@ if 'total_cases_df' not in globals() or 'all_dates' not in globals():
 else:
     # Define functions for different visualizations
     
-    def generate_visualizations(show_issue_cases, time_frame, focus_on):
+    def generate_visualizations(show_issue_cases, time_frame, focus_on, visualization_type):
         # Prepare data for the selected time frame
         if time_frame == 'Daily':
-            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='D')
             freq = 'D'
         elif time_frame == 'Weekly':
-            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='W')
             freq = 'W'
         else:
-            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='D')
-            freq = 'D'
+            freq = 'D'  # Default to Daily if not specified
         
         # Aggregate data based on the focus
         if focus_on == 'Issue Cases' and issue_data_available and not issue_cases_df.empty:
             data_df = issue_cases_df.copy()
             title_suffix = 'Issue Cases'
         elif focus_on == 'Overall Cases':
-            if issue_data_available:
+            if issue_data_available and not issue_cases_df.empty:
                 data_df = pd.concat([total_cases_df, issue_cases_df])
             else:
                 data_df = total_cases_df.copy()
@@ -388,22 +566,69 @@ else:
             display(Markdown("**No data available for the selected focus.**"))
             return
         
+        if data_df.empty:
+            display(Markdown("**No data available for the selected focus and time frame.**"))
+            return
+        
         # Group data based on the selected time frame
         data_df['Period'] = data_df['Created_Date'].dt.to_period(freq).dt.start_time
-        cases_per_period = data_df.groupby('Period').size().reindex(date_range, fill_value=0)
+        cases_per_period = data_df.groupby('Period').size()
         
-        # Generate the visualization
-        fig = px.line(
-            x=cases_per_period.index,
-            y=cases_per_period.values,
-            title=f'{time_frame} Trend of {title_suffix}',
-            labels={'x': 'Date', 'y': 'Number of Cases'},
-            markers=True
-        )
-        fig.update_layout(xaxis_tickformat='%Y-%m-%d', xaxis_tickangle=45)
-        fig.show()
+        # Generate the visualization based on the selected type
+        if visualization_type == 'Trend Line':
+            fig = px.line(
+                x=cases_per_period.index,
+                y=cases_per_period.values,
+                title=f'{time_frame} Trend of {title_suffix}',
+                labels={'x': 'Date', 'y': 'Number of Cases'},
+                markers=True
+            )
+            fig.update_layout(xaxis_tickformat='%Y-%m-%d', xaxis_tickangle=45)
+            fig.show()
+        elif visualization_type == 'Bar Chart':
+            fig = px.bar(
+                x=cases_per_period.index,
+                y=cases_per_period.values,
+                title=f'{time_frame} Cases Count - {title_suffix}',
+                labels={'x': 'Date', 'y': 'Number of Cases'},
+                text=cases_per_period.values
+            )
+            fig.update_traces(textposition='outside')
+            fig.update_layout(xaxis_tickformat='%Y-%m-%d', xaxis_tickangle=45)
+            fig.show()
+        elif visualization_type == 'Pie Chart':
+            # For pie chart, we need to aggregate total counts
+            total_cases_count = cases_per_period.sum()
+            if total_cases_count == 0:
+                display(Markdown("**No data available to display a pie chart.**"))
+                return
+            fig = px.pie(
+                names=[title_suffix],
+                values=[total_cases_count],
+                title=f'Distribution of {title_suffix}'
+            )
+            fig.show()
+        elif visualization_type == 'Histogram':
+            fig = px.histogram(
+                data_df,
+                x='Processing_Time',
+                nbins=20,
+                title=f'Processing Time Distribution - {title_suffix}',
+                labels={'Processing_Time': 'Processing Time (minutes)'}
+            )
+            fig.update_layout(bargap=0.1)
+            fig.show()
+        else:
+            display(Markdown("**Invalid visualization type selected.**"))
+            return
     
     # Create interactive widgets
+    visualization_widget = widgets.Dropdown(
+        options=['Trend Line', 'Bar Chart', 'Pie Chart', 'Histogram'],
+        value='Trend Line',
+        description='Visualization:'
+    )
+    
     time_frame_widget = widgets.Dropdown(
         options=['Daily', 'Weekly'],
         value='Daily',
@@ -417,13 +642,18 @@ else:
     )
     
     # Display the widgets and the visualization
-    ui = widgets.HBox([time_frame_widget, focus_widget])
+    ui = widgets.HBox([visualization_widget, time_frame_widget, focus_widget])
     
     out = widgets.interactive_output(
         generate_visualizations,
-        {'time_frame': time_frame_widget, 'focus_on': focus_widget, 'show_issue_cases': widgets.fixed(issue_data_available)}
+        {
+            'visualization_type': visualization_widget,
+            'time_frame': time_frame_widget,
+            'focus_on': focus_widget,
+            'show_issue_cases': widgets.fixed(issue_data_available)
+        }
     )
     
-    display(Markdown("## **Customizable Trend Visualization**"))
-    display(Markdown("Select the time frame and focus for the visualization:"))
+    display(Markdown("## **Customizable Visualizations**"))
+    display(Markdown("Select the visualization type, time frame, and focus:"))
     display(ui, out)
