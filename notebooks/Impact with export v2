@@ -507,3 +507,86 @@ def load_and_preprocess(filename):
 
 # Run the main function and capture returned data
 total_cases_df, issue_cases_df, total_cases_per_day, issue_cases_per_day, all_dates, num_days, issue_data_available = main()
+
+
+# Import necessary libraries (if not already imported)
+import pandas as pd
+import plotly.express as px
+from IPython.display import display, Markdown
+import ipywidgets as widgets
+from datetime import datetime
+
+# Check if data is available
+if 'total_cases_df' not in globals() or 'all_dates' not in globals():
+    display(Markdown("**Data not available. Please run the main analysis cell first.**"))
+else:
+    # Define functions for different visualizations
+    
+    def generate_visualizations(show_issue_cases, time_frame, focus_on):
+        # Prepare data for the selected time frame
+        if time_frame == 'Daily':
+            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='D')
+            freq = 'D'
+        elif time_frame == 'Weekly':
+            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='W')
+            freq = 'W'
+        else:
+            date_range = pd.date_range(start=all_dates[0], end=all_dates[-1], freq='D')
+            freq = 'D'
+        
+        # Aggregate data based on the focus
+        if focus_on == 'Issue Cases' and issue_data_available and not issue_cases_df.empty:
+            data_df = issue_cases_df.copy()
+            title_suffix = 'Issue Cases'
+        elif focus_on == 'Overall Cases':
+            if issue_data_available:
+                data_df = pd.concat([total_cases_df, issue_cases_df])
+            else:
+                data_df = total_cases_df.copy()
+            title_suffix = 'Overall Cases'
+        elif focus_on == 'Non-Issue Cases':
+            data_df = total_cases_df.copy()
+            title_suffix = 'Non-Issue Cases'
+        else:
+            display(Markdown("**No data available for the selected focus.**"))
+            return
+        
+        # Group data based on the selected time frame
+        data_df['Period'] = data_df['Created_Date'].dt.to_period(freq).dt.start_time
+        cases_per_period = data_df.groupby('Period').size().reindex(date_range, fill_value=0)
+        
+        # Generate the visualization
+        fig = px.line(
+            x=cases_per_period.index,
+            y=cases_per_period.values,
+            title=f'{time_frame} Trend of {title_suffix}',
+            labels={'x': 'Date', 'y': 'Number of Cases'},
+            markers=True
+        )
+        fig.update_layout(xaxis_tickformat='%Y-%m-%d', xaxis_tickangle=45)
+        fig.show()
+    
+    # Create interactive widgets
+    time_frame_widget = widgets.Dropdown(
+        options=['Daily', 'Weekly'],
+        value='Daily',
+        description='Time Frame:'
+    )
+    
+    focus_widget = widgets.Dropdown(
+        options=['Overall Cases', 'Issue Cases', 'Non-Issue Cases'],
+        value='Overall Cases',
+        description='Focus On:'
+    )
+    
+    # Display the widgets and the visualization
+    ui = widgets.HBox([time_frame_widget, focus_widget])
+    
+    out = widgets.interactive_output(
+        generate_visualizations,
+        {'time_frame': time_frame_widget, 'focus_on': focus_widget, 'show_issue_cases': widgets.fixed(issue_data_available)}
+    )
+    
+    display(Markdown("## **Customizable Trend Visualization**"))
+    display(Markdown("Select the time frame and focus for the visualization:"))
+    display(ui, out)
