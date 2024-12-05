@@ -1,0 +1,72 @@
+import requests
+import csv
+from getpass import getpass
+
+def confluence_export_to_csv(base_url, space_key):
+    """
+    Pulls all search results from Confluence using the REST API with pagination and saves them to a CSV file.
+
+    Args:
+        base_url (str): Base URL of the Confluence site.
+        space_key (str): Key of the Confluence space to search within.
+
+    Returns:
+        None
+    """
+    # Prompt for user inputs
+    email = input("Enter your Confluence email: ")
+    api_token = getpass("Enter your Confluence API token (input hidden): ")
+    query = input("Enter your search query (e.g., text~'term'): ")
+
+    # API endpoint
+    url = f"{base_url}/wiki/rest/api/content/search"
+    headers = {"Authorization": f"Bearer {api_token}"}
+
+    # Prepare CSV file
+    csv_file = f"confluence_export_{space_key}.csv"
+    with open(csv_file, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Title", "URL"])  # CSV header
+
+        # Pagination variables
+        start = 0
+        limit = 100  # API limit per request
+        total_results = 0
+
+        print("Fetching results from Confluence...")
+        while True:
+            # Query with pagination
+            params = {
+                "cql": f"type=page AND {query} AND space='{space_key}'",
+                "start": start,
+                "limit": limit
+            }
+            response = requests.get(url, headers=headers, params=params)
+
+            if response.status_code != 200:
+                print(f"Error: Unable to fetch data (HTTP {response.status_code})")
+                print(response.text)
+                return
+
+            data = response.json()
+            results = data.get("results", [])
+            total_results += len(results)
+
+            # Write data to CSV
+            for result in results:
+                title = result.get("title", "Untitled")
+                link = f"{base_url}/wiki{result['_links']['webui']}"
+                writer.writerow([title, link])
+
+            # Check if there are more pages
+            if len(results) < limit:
+                break  # No more results
+            start += limit  # Move to the next page
+
+        print(f"Export complete! {total_results} results saved to {csv_file}.")
+
+# Run the function
+confluence_export_to_csv(
+    base_url="https://your-confluence-site.atlassian.net",
+    space_key="YOUR_SPACE_KEY"  # Replace with your space key
+)
